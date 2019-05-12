@@ -1,131 +1,165 @@
+/**** 
+  'Rod.cpp':
+  --------------------
+  Implementation of Rod struct.
+  For declaration details, see 'Rod.h'.
+  
+  Needs: 'parameters.cpp'
+  
+  --------------------
+  A 'Rod' is represented by a rectangle with
+    width  = 2*'HALF_WIDTH' and
+    length = 2*'HALF_LENGTH'
+  at the 2D cartesian position of its center
+    (m_xPos, m_yPos)
+  with orientation
+    m_angle
+  defined as the angle between the 'LENGTH'- and the OX-axis.
+  
+  Note: the file 'parameters.cpp' is needed to specify the parameters
+        'HALF_WIDTH', 'HALF_LENGTH', 'HALF_DIAGONAL',
+        'WIDTH', 'LENGTH', 'DIAGONAL', 
+        'ALPHA', 'HALF_PI' and 'PI'.
+        
+  --------------------
+  Last modified: 2019-05-12 
+  By: M. E. Maza Cuello
+****/
+
 #include <cmath>
 #include <iostream>
 #include "Rod.h"
 
+/** PARAMETERS OBTAINED FROM 'parameters.cpp' **/
+// Lengths
 extern const double WIDTH;
 extern const double DIAGONAL;
 extern const double HALF_WIDTH;
 extern const double HALF_LENGTH;
 extern const double HALF_DIAGONAL;
+// Angles
+extern const double PI;
+extern const double HALF_PI;
+extern const double ALPHA;
+
+/** 'Rod' IMPLEMENTATION **/
+/* Static variables */
+// Length variables
 const double Rod::m_HALF_WIDTH    = HALF_WIDTH;
 const double Rod::m_HALF_LENGTH   = HALF_LENGTH;
 const double Rod::m_HALF_DIAGONAL = HALF_DIAGONAL;
 
-extern const double ALPHA;
-extern const double HALF_PI;
-extern const double PI;
+/* Methods */
 
-bool Rod::isTouchingRod(const Rod& refRod)
+bool Rod::isTouchingRod(const Rod& otherRod)
 {
-    double xrel = m_xPos-refRod.m_xPos;
-    double yrel = m_yPos-refRod.m_yPos;
-    double distance = std::sqrt(xrel*xrel + yrel*yrel);
-    //std::cout << "Distance = " << distance << std::endl;
-    if(distance < WIDTH)
-    {
-        return true;
-    } else if(distance > DIAGONAL)
-    {
-        return false;
-    }
+  /** 
+    'isTouchingRod': Return 'true' if rod is overlapping 'otherRod', 'false' if not.
+                     Assumes 'm_angle' of both rods to be in the interval [-HALF_PI, HALF_PI].
+  **/
+  
+  /* First criterion: rods too far/close to eachother to overlap */
+  // Relative cartesian position between this and 'refRod'
+  double xrel = m_xPos-otherRod.m_xPos;
+  double yrel = m_yPos-otherRod.m_yPos;
+  
+  // Cartesian distance between this and 'refRod' centers
+  double distance = std::sqrt(xrel*xrel + yrel*yrel);
 
-    // phi in -pi/2, pi/2
-    double phi = m_angle - refRod.m_angle;
-    if(phi > HALF_PI){ phi -= PI;}
-    else if(phi < -HALF_PI){ phi += PI;}
-    //std::cout << "Phi = " << phi << std::endl;
+  // Check first criterion
+  if(distance < WIDTH)
+  {
+      return true;
+  } else if(distance > DIAGONAL)
+  {
+      return false;
+  }
 
-    // theta in -pi, pi
-    double theta = std::atan2(yrel,xrel) - refRod.m_angle;
-    if(theta > PI){ theta -= 2.0*PI;}
-    else if(theta < -PI){ theta += 2.0*PI;}
-    //std::cout << "Theta = " << theta << ", ";
+  /* Second criterion: 'distance' less than minimum distance 'minDist', 
+                      obtained via an analytical expression which is function
+                      of relatives angles 'phi' and 'theta' (defined below)   */
+  
+  // Relative orientation between rods orientations: 'phi'
+  double phi = m_angle - otherRod.m_angle;
+  
+  // 'phi' in interval [-pi/2, pi/2]
+  if(phi > HALF_PI){ phi -= PI;}
+  else if(phi < -HALF_PI){ phi += PI;}
+  
+  // Relative angle between rod centers (with respect to otherRod orientation): 'theta'
+  double theta = std::atan2(yrel,xrel) - otherRod.m_angle;
+  
+  // 'theta' in interval [-pi, pi]
+  if(theta > PI){ theta -= 2.0*PI;}
+  else if(theta < -PI){ theta += 2.0*PI;}
 
-    if(phi < 0.0d)
-    {
-        phi = -phi;
-        if(theta < 0.0d)
-        {
-            theta = -theta;
-        }
-        else
-        {
-            theta = PI-theta;
-        }
-    }
-    else
-    {
-        if(theta < 0.0d)
-        {
-            theta = theta+PI;
-        }
-    }
+  // Rotate / reflect system to work in the first and second cartesian quadrants 
+  if(phi < 0.0d)
+  {
+      phi = -phi;
+      if(theta < 0.0d)
+      {
+          theta = -theta;
+      }
+      else
+      {
+          theta = PI-theta;
+      }
+  }
+  else
+  {
+      if(theta < 0.0d)
+      {
+          theta = theta+PI;
+      }
+  }
 
-    double THETA0  = 0.5*phi;
-    double THETAm1 = THETA0-ALPHA;
-    double THETA1  = THETA0+ALPHA;
-    double THETA2  = THETA0+HALF_PI;
-    double THETA3  = THETAm1+PI;
+  // Auxiliary angles: analytical frontiers for different cheking regions
+  double THETA0  = 0.5*phi;
+  double THETAm1 = THETA0-ALPHA;
+  double THETA1  = THETA0+ALPHA;
+  double THETA2  = THETA0+HALF_PI;
+  double THETA3  = THETAm1+PI;
+  
+  // Common factor of 'minDist'
+  double minDist = DIAGONAL*std::cos(THETA0);
 
-    double minDist = DIAGONAL*std::cos(THETA0);
+  // Compute specific 'minDist' 
+  if(theta < THETAm1)
+  {
+      // First region: 'theta' in [-pi, phi/2-ALPHA]
+      minDist *= std::sin(THETA1)/std::sin(phi-theta);
+  }else if(theta < THETA0)
+  {
+      // Second region: 'theta' in [phi/2-ALPHA, phi/2]
+      minDist *= std::cos(THETAm1)/std::cos(theta);
+  }else if(theta < THETA1)
+  {
+      // Third region: 'theta' in [phi/2, phi/2+ALPHA]
+      minDist *= std::cos(THETAm1)/std::cos(theta-phi);
+  }else if(theta < THETA2)
+  {
+      // Forth region: 'theta' in [phi/2+ALPHA, phi/2+HALF_PI]
+      minDist *= std::sin(THETA1)/std::sin(theta);
+  }else if(theta < THETA3)
+  {
+      // Fifth region: 'theta' in [phi/2+HALF_PI, phi/2-ALPHA+PI]
+      minDist *= std::sin(THETA1)/std::sin(theta-phi);
+  }else
+  {
+      // Sixth region: 'theta' in [phi/2-ALPHA+PI, PI]
+      minDist *= std::cos(THETAm1)/(-std::cos(theta));
+  }
 
-    if(theta < THETAm1)
-    {
-        //std::cout << "Case 0: " << 0.0 << " < " << theta << " < " << THETAm1 << std::endl;
-        minDist *= std::sin(THETA1)/std::sin(phi-theta);
-        //if(minDist < 0.0d){ std::cout << "ERROR CASE 0!";}
-        //std::cout << "Min distance = " << minDist
-        //          << ", distance = " << distance << std::endl;
-        if(distance < minDist){return true;}else{return false;}
-    }else if(theta < THETA0)
-    {
-        //std::cout << "Case 1: " << 0.0 << " < " << theta << " < " << THETA1 << std::endl;
-        minDist *= std::cos(THETAm1)/std::cos(theta);
-        //if(minDist < 0.0d){ std::cout << "ERROR CASE 1!";}
-        //std::cout << "Min distance = " << minDist
-        //          << ", distance = " << distance << std::endl;
-        if(distance < minDist){return true;}else{return false;}
-    }else if(theta < THETA1)
-    {
-        //std::cout << "Case 2: " << THETA1 << " < " << theta << " < " << THETA2 << std::endl;
-        minDist *= std::cos(THETAm1)/std::cos(theta-phi);
-        //if(minDist < 0.0d){ std::cout << "ERROR CASE 2!";}
-        //std::cout << "Min distance = " << minDist
-        //          << ", distance = " << distance << std::endl;
-        if(distance < minDist){return true;}else{return false;}
-    }else if(theta < THETA2)
-    {
-        //std::cout << "Case 3: " << THETA2 << " < " << theta << " < " << THETA3 << std::endl;
-        minDist *= std::sin(THETA1)/std::sin(theta);
-        //if(minDist < 0.0d){ std::cout << "ERROR CASE 3!";}
-        //std::cout << "Min distance = " << minDist
-        //          << ", distance = " << distance << std::endl;
-        if(distance < minDist){return true;}else{return false;}
-    }else if(theta < THETA3)
-    {
-        //std::cout << "Case 4: " << THETA3 << " < " << theta << " < " << THETA4 << std::endl;
-        minDist *= std::sin(THETA1)/std::sin(theta-phi);
-        //if(minDist < 0.0d){ std::cout << "ERROR CASE 4!";}
-        //std::cout << "Min distance = " << minDist
-        //          << ", distance = " << distance << std::endl;
-        if(distance < minDist){return true;}else{return false;}
-    }else
-    {
-        //std::cout << "Case 5: " << THETA4 << " < " << theta << " < " << PI << std::endl;
-        minDist *= std::cos(THETAm1)/(-std::cos(theta));
-        //if(minDist < 0.0d){ std::cout << "ERROR CASE 5!";}
-        //std::cout << "Min distance = " << minDist
-        //          << ", distance = " << distance << std::endl;
-        if(distance < minDist){return true;}else{return false;}
-    }
-
-//    if(distance < minDist)
-//    {
-//        return true;
-//    }else
-//    {
-//        return false;
-//    }
+  // Check second criterion
+  if(distance < minDist)
+  {
+    return true;
+  }
+  else
+  {
+    return false;
+  }
 
 }
 
