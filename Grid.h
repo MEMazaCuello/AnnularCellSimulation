@@ -49,12 +49,6 @@ public:
 
   /* Methods */
   
-  void fillGrid(std::vector<Rod>& bundle);
-  /** 
-    'fillGrid': Given a bundle of 'Rod's, compute coordinates in the grid of each 'Rod'
-                and save 'Rod's index on corresponding box on 'm_map'.
-  **/
-  
   int getGridX(const Rod& rod) const;
   /**
     'getGridX': Given a 'rod', compute horizontal coordinate in grid,
@@ -71,6 +65,12 @@ public:
   /**
     'getGridCoords': Given a 'rod', compute pair of coordinates in grid,
                      to be used as indexes for 'm_map'. 
+  **/
+  
+  void fillGrid(std::vector<Rod>& bundle);
+  /** 
+    'fillGrid': Given a bundle of 'Rod's, compute coordinates in the grid of each 'Rod'
+                and save 'Rod's index on corresponding box on 'm_map'.
   **/
   
   int  getNumberOfNeighbours(const int& coordx, const int& coordy) const;
