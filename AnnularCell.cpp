@@ -1,3 +1,32 @@
+/****
+  'AnnularCell.cpp':
+  --------------------
+  Implementation of 'AnnularCell' class.
+  For declaration details, see 'AnnularCell.cpp'.
+  
+  Needs: 'Rod.h'
+         'Grid.h'
+  
+  --------------------
+  An 'AnnularCell' is the area contained within 
+  two concentric circles defined by the
+    'm_INNER_RADIUS' and the
+    'm_OUTER_RADIUS',
+  and contains 'm_NUMBER_OF_RODS' 
+  in a 'm_bundle' of 'Rod's.
+  The 'Rod's are numbered with an index
+  saved in a 'm_grid' to know its 
+  approximate position inside the 'AnnularCell'.
+
+  Note: the file 'parameters.cpp' is needed to specify the parameters
+        'INNER_RADIUS' and 'OUTER_RADIUS',
+        'ALPHA', 'HALF_PI' and 'PI'.
+
+  --------------------
+  Last modified: 2019-05-15 
+  By: M. E. Maza Cuello
+****/
+
 #include "AnnularCell.h"
 #include "montecarloRoutines.h"
 
@@ -6,362 +35,558 @@
 #include <cmath>
 #include <random>
 
-// Auxiliary parameters from "parameters.cpp"
+/** PARAMETERS OBTAINED FROM 'parameters.cpp' **/
+// Lengths
+extern const double INNER_RADIUS;
+extern const double OUTER_RADIUS;
+// Angles
 extern const double HALF_PI;
 extern const double PI;
-//extern const double QUARTER_PI;
 extern const double ALPHA;
+
+/** 'AnnularCell' IMPLEMENTATION **/
+/* Static variables */
+// Length variables
+const double AnnularCell::m_INNER_RADIUS = INNER_RADIUS;
+const double AnnularCell::m_OUTER_RADIUS = OUTER_RADIUS;
+
+/* Methods*/
 
 // Random number generator
 std::mt19937_64 gen(10082273);
 std::uniform_real_distribution<double> rndmdist(-1.0,1.0);
 
-// Load dimensions from "parameters.cpp"
-extern const double INNER_RADIUS;
-extern const double OUTER_RADIUS;
-const double AnnularCell::m_INNER_RADIUS = INNER_RADIUS;
-const double AnnularCell::m_OUTER_RADIUS = OUTER_RADIUS;
-
-/* Get rod from bundle */
-Rod  AnnularCell::getRod(const int& index) const  // Private ?
+void  AnnularCell::printRod(const int& index) const
 {
-    return m_bundle[index];
+  /**
+  'printRod': Print information about 'Rod' to terminal. 
+              Included solely for debugging purposes.
+  **/
+  
+  std::cout << "Rod #" << index << ": ( " << m_bundle[index].m_xPos << " , "
+                                          << m_bundle[index].m_yPos << " , "
+                                          << m_bundle[index].m_angle << " ) " << std::endl;
 }
 
-/* Print information about rod to terminal */
-void  AnnularCell::printRod(const int& index) const // Private ?
+Rod  AnnularCell::getRod(const int& index) const
 {
-    std::cout << "Rod #" << index << ": ( " << m_bundle[index].m_xPos << " , "
-                                            << m_bundle[index].m_yPos << " , "
-                                            << m_bundle[index].m_angle << " ) " << std::endl;
+  /**
+    'getRod': Given the 'index' of a 'Rod', get it from the 'm_bundle'. 
+  **/
+  
+  return m_bundle[index];
 }
 
-
-/* Is rectangle touching the circle in center of the cell? */
-// Auxiliary global parameters
-const double R_PLUS_HALF_L = INNER_RADIUS + Rod::m_HALF_LENGTH;
-const double R_PLUS_HALF_W = INNER_RADIUS + Rod::m_HALF_WIDTH;
-const double HALF_D_OVER_R = Rod::m_HALF_DIAGONAL/INNER_RADIUS;
-const double PHI_ONE = std::atan2(Rod::m_HALF_WIDTH, R_PLUS_HALF_L);
-const double PHI_TWO = std::atan2(R_PLUS_HALF_W, Rod::m_HALF_LENGTH);
-
-// Index version
 bool AnnularCell::rodIsTouchingInnerWall(const int& index)
 {
-    static const double INNER_MIN_DIST = m_INNER_RADIUS + Rod::m_HALF_WIDTH;
-    static const double INNER_MAX_DIST = m_INNER_RADIUS + Rod::m_HALF_DIAGONAL;
+  /**
+    'rodIsTouchingInnerWall' : Check if 'Rod' referenced by 'index' 
+                               is overlapping inner boundary of the 'AnnularCell'.
+  **/
+  
+  // Auxiliary constant variables
+  static const double R_PLUS_HALF_L = INNER_RADIUS + Rod::m_HALF_LENGTH;
+  static const double R_PLUS_HALF_W = INNER_RADIUS + Rod::m_HALF_WIDTH;
+  static const double HALF_D_OVER_R = Rod::m_HALF_DIAGONAL/INNER_RADIUS;
+  static const double PHI_ONE = std::atan2(Rod::m_HALF_WIDTH, R_PLUS_HALF_L);
+  static const double PHI_TWO = std::atan2(R_PLUS_HALF_W, Rod::m_HALF_LENGTH);
+  static const double INNER_MIN_DIST = m_INNER_RADIUS + Rod::m_HALF_WIDTH;
+  static const double INNER_MAX_DIST = m_INNER_RADIUS + Rod::m_HALF_DIAGONAL;
 
-    if(index < m_NUMBER_OF_PARTICLES)
-    {
-        // Get rod
-        m_aux_rod = getRod(index);
+  // If input 'index' is valid
+  if(index < m_NUMBER_OF_PARTICLES)
+  {
+    // Get 'm_aux_rod' from 'index'
+    m_aux_rod = getRod(index);
 
-        /* Center too far or too close of inner wall*/
-        double distance = std::sqrt(m_aux_rod.m_xPos*m_aux_rod.m_xPos + m_aux_rod.m_yPos*m_aux_rod.m_yPos);
-        if(distance > INNER_MAX_DIST){ return false; }
-        if(distance < INNER_MIN_DIST){ return  true; }
-
-        /* Intermediate region */
-        double theta = std::atan2(m_aux_rod.m_yPos, m_aux_rod.m_xPos);
-        double phi   = std::abs(m_aux_rod.m_angle - theta);
-
-        // phi between 0 and PI/2
-        if(phi > PI){ phi -= PI;}
-        if(phi > HALF_PI){ phi = PI - phi;}
-
-        double minDist;
-        if(phi < PHI_ONE)
-        {
-            minDist = R_PLUS_HALF_L/std::cos(phi);
-            if(distance < minDist){return true;}else{return false;}
-        }
-        else if(phi > PHI_TWO)
-        {
-            minDist = R_PLUS_HALF_W/std::sin(phi);
-            if(distance < minDist){return true;}else{return false;}
-        }
-        else
-        {
-            double lambda = std::asin( HALF_D_OVER_R*std::sin(ALPHA-phi) );
-            if(phi < ALPHA)
-            {
-                minDist = (Rod::m_HALF_LENGTH+m_INNER_RADIUS*std::cos(phi-lambda))/std::cos(phi);
-                if(distance < minDist){return true;}else{return false;}
-            }
-            else
-            {
-                minDist = (Rod::m_HALF_WIDTH+m_INNER_RADIUS*std::sin(phi-lambda))/std::sin(phi);
-                if(distance < minDist){return true;}else{return false;}
-            }
-        }
+    /* First criterion: Center of rod too far or too close of inner wall to overlap */
+    
+    // Cartesian distance between 'm_aux_rod' center and 'AnnularCell' center 
+    double distance = std::sqrt(m_aux_rod.m_xPos*m_aux_rod.m_xPos + m_aux_rod.m_yPos*m_aux_rod.m_yPos);
+    
+    // Check first criterion
+    if(distance > INNER_MAX_DIST)
+    { 
+      return false; 
     }
-    else
-    {
-        return true;
+    if(distance < INNER_MIN_DIST)
+    { 
+      return true; 
     }
-}
 
-// Rod version
-bool AnnularCell::rodIsTouchingInnerWall(const Rod& rod)
-{
-    static const double INNER_MIN_DIST = m_INNER_RADIUS + Rod::m_HALF_WIDTH;
-    static const double INNER_MAX_DIST = m_INNER_RADIUS + Rod::m_HALF_DIAGONAL;
+    /* Second criterion: 'distance' less than minimum distance 'minDist', 
+                         obtained via an analytical expression which is function
+                         of relatives angles 'theta' and 'phi' (defined below)   */
 
-    /* Center too far or too close of inner wall*/
-    double distance = std::sqrt(rod.m_xPos*rod.m_xPos + rod.m_yPos*rod.m_yPos);
-    if(distance > INNER_MAX_DIST){ return false; }
-    if(distance < INNER_MIN_DIST){ return  true; }
+    // Angle between rod center and X (horizontal) axis: 'theta'
+    double theta = std::atan2(m_aux_rod.m_yPos, m_aux_rod.m_xPos);
 
-    /* Intermediate region */
-    double theta = std::atan2(rod.m_yPos, rod.m_xPos);
-    double phi   = std::abs(rod.m_angle - theta);
+    // Relative angle between 'rod's orientation and 'theta': 'phi'
+    double phi   = std::abs(m_aux_rod.m_angle - theta);
 
-    // phi between 0 and PI/2
+    // 'phi' in interval [-pi/2, pi/2]
     if(phi > PI){ phi -= PI;}
     if(phi > HALF_PI){ phi = PI - phi;}
 
+    // Computation of analytical 'minDist'
     double minDist;
     if(phi < PHI_ONE)
     {
-        minDist = R_PLUS_HALF_L/std::cos(phi);
-        if(distance < minDist){return true;}else{return false;}
+      // First region: 'phi' in [-pi/2, PHI_ONE]
+      minDist = R_PLUS_HALF_L/std::cos(phi);
     }
     else if(phi > PHI_TWO)
     {
-        minDist = R_PLUS_HALF_W/std::sin(phi);
-        if(distance < minDist){return true;}else{return false;}
+      // Second region: 'phi' in [-pi/2, PHI_TWO]
+      minDist = R_PLUS_HALF_W/std::sin(phi);
     }
     else
     {
-        double lambda = std::asin( HALF_D_OVER_R*std::sin(ALPHA-phi) );
-        if(phi < ALPHA)
+      // Third region: 'phi' in [PHI_ONE, PHI_TWO]
+      double lambda = std::asin( HALF_D_OVER_R*std::sin(ALPHA-phi) );
+      if(phi < ALPHA)
+      {
+        minDist = (Rod::m_HALF_LENGTH+m_INNER_RADIUS*std::cos(phi-lambda))/std::cos(phi);
+      }
+      else
+      {
+        minDist = (Rod::m_HALF_WIDTH+m_INNER_RADIUS*std::sin(phi-lambda))/std::sin(phi);
+      }
+    }
+    
+    // Check second criterion
+    if(distance < minDist)
+    {
+      return true;
+    }
+    else
+    {
+      return false;
+    }
+  }
+  else // if input 'index' is not valid
+  {
+      return true;
+  }
+}
+
+bool AnnularCell::rodIsTouchingInnerWall(const Rod& rod)
+{
+  /**
+    'rodIsTouchingInnerWall' : Check if 'rod' is overlapping inner boundary of the 'AnnularCell'.
+  **/
+  
+  // Auxiliary constant variables
+  static const double R_PLUS_HALF_L = INNER_RADIUS + Rod::m_HALF_LENGTH;
+  static const double R_PLUS_HALF_W = INNER_RADIUS + Rod::m_HALF_WIDTH;
+  static const double HALF_D_OVER_R = Rod::m_HALF_DIAGONAL/INNER_RADIUS;
+  static const double PHI_ONE = std::atan2(Rod::m_HALF_WIDTH, R_PLUS_HALF_L);
+  static const double PHI_TWO = std::atan2(R_PLUS_HALF_W, Rod::m_HALF_LENGTH);
+  static const double INNER_MIN_DIST = m_INNER_RADIUS + Rod::m_HALF_WIDTH;
+  static const double INNER_MAX_DIST = m_INNER_RADIUS + Rod::m_HALF_DIAGONAL;
+
+  /* First criterion: Center of rod too far or too close of inner wall to overlap */
+  
+  // Cartesian distance between 'm_aux_rod' center and 'AnnularCell' center
+  double distance = std::sqrt(rod.m_xPos*rod.m_xPos + rod.m_yPos*rod.m_yPos);
+    
+  // Check first criterion
+  if(distance > INNER_MAX_DIST)
+  { 
+    return false; 
+  }
+  if(distance < INNER_MIN_DIST)
+  { 
+    return true; 
+  }
+
+  /* Second criterion: 'distance' less than minimum distance 'minDist', 
+                       obtained via an analytical expression which is function
+                       of relatives angles 'theta' and 'phi' (defined below)   */
+  
+  // Angle between rod center and X (horizontal) axis: 'theta'
+  double theta = std::atan2(rod.m_yPos, rod.m_xPos);
+  
+  // Relative angle between 'rod's orientation and 'theta': 'phi'
+  double phi   = std::abs(rod.m_angle - theta);
+
+  // 'phi' in interval [-pi/2, pi/2]
+  if(phi > PI){ phi -= PI;}
+  if(phi > HALF_PI){ phi = PI - phi;}
+
+  // Computation of analytical 'minDist'
+  double minDist;
+  if(phi < PHI_ONE)
+  {
+    // First region: 'phi' in [-pi/2, PHI_ONE]
+    minDist = R_PLUS_HALF_L/std::cos(phi);
+  }
+  else if(phi > PHI_TWO)
+  {
+    // Second region: 'phi' in [-pi/2, PHI_TWO]
+    minDist = R_PLUS_HALF_W/std::sin(phi);
+  }
+  else
+  {
+    // Third region: 'phi' in [PHI_ONE, PHI_TWO]
+    double lambda = std::asin( HALF_D_OVER_R*std::sin(ALPHA-phi) );
+    if(phi < ALPHA)
+    {
+      minDist = (Rod::m_HALF_LENGTH+m_INNER_RADIUS*std::cos(phi-lambda))/std::cos(phi);
+    }
+    else
+    {
+      minDist = (Rod::m_HALF_WIDTH+m_INNER_RADIUS*std::sin(phi-lambda))/std::sin(phi);
+    }
+  }
+  
+  // Check second criterion
+  if(distance < minDist)
+  {
+    return true;
+  }
+  else
+  {
+    return false;
+  }
+}
+
+bool AnnularCell::rodIsTouchingOuterWall(const int& index)
+{
+  /**
+    'rodIsTouchingOuterWall' : Check if 'Rod' referenced by 'index' 
+                               is overlapping outer boundary of the 'AnnularCell'.
+  **/
+  
+  // Auxiliary constant variables
+  static const double OUTER_MIN_DIST = std::sqrt(m_OUTER_RADIUS*m_OUTER_RADIUS-Rod::m_HALF_LENGTH*Rod::m_HALF_LENGTH) - Rod::m_HALF_WIDTH;
+  static const double OUTER_MAX_DIST = m_OUTER_RADIUS - Rod::m_HALF_DIAGONAL;
+
+  // If input 'index' is valid
+  if(index < m_NUMBER_OF_PARTICLES)
+  {
+    // Get 'm_aux_rod' from 'index'
+    m_aux_rod = getRod(index);
+
+    /* First criterion: Center of rod too far or too close of outer wall to overlap */
+    
+    // Cartesian distance between 'm_aux_rod' center and 'AnnularCell' center
+    double distance = std::sqrt(m_aux_rod.m_xPos*m_aux_rod.m_xPos + m_aux_rod.m_yPos*m_aux_rod.m_yPos);
+    
+    // Check first criterion
+    if(distance > OUTER_MIN_DIST)
+    { 
+      return true; 
+    }
+    if(distance < OUTER_MAX_DIST)
+    { 
+      return false; 
+    }
+
+    /* Second criterion: 'distance' less than minimum distance 
+                       obtained via an analytical expression which is function
+                       of relatives angles 'theta' and 'phi' (defined below)   */
+    
+    // Angle between 'rod' center and X (horizontal) axis: 'theta'
+    double theta = std::atan2(m_aux_rod.m_yPos, m_aux_rod.m_xPos);
+
+    // Relative angle between 'rod's orientation and 'theta': 'phi'
+    double phi = m_aux_rod.m_angle - theta;
+    
+    // 'phi' in interval [-pi/2, pi/2]
+    if(phi < -HALF_PI)
+    {
+      phi = phi + PI;
+    }else if(phi > HALF_PI)
+    {
+      phi = phi - PI;
+    }
+
+    // 'phi' is not directly needed
+    phi = std::cos(ALPHA-std::fabs(phi));
+
+    // Check second criterion
+    if(distance > (std::sqrt(m_OUTER_RADIUS*m_OUTER_RADIUS-Rod::m_HALF_DIAGONAL*Rod::m_HALF_DIAGONAL*(1.0-phi*phi))-Rod::m_HALF_DIAGONAL*phi ))
+    {
+      return true;
+    }else
+    {
+      return false;
+    }
+  }
+  else // if input 'index' is not valid
+  {
+    return true;
+  }
+}
+
+bool AnnularCell::rodIsTouchingOuterWall(const Rod& rod)
+{
+  /**
+    'rodIsTouchingOuterWall' : Check if 'rod' is overlapping outer boundary of the 'AnnularCell'.
+  **/
+  
+  // Auxiliary constant variables
+  static const double OUTER_MIN_DIST = m_OUTER_RADIUS - Rod::m_HALF_WIDTH;
+  static const double OUTER_MAX_DIST = m_OUTER_RADIUS - Rod::m_HALF_DIAGONAL;
+
+  /* First criterion: Center of rod too far or too close of outer wall to overlap */
+  
+  // Cartesian distance between 'rod' center and 'AnnularCell' center
+  double distance = std::sqrt(rod.m_xPos*rod.m_xPos + rod.m_yPos*rod.m_yPos);
+  
+  // Check first criterion
+  if(distance > OUTER_MIN_DIST)
+  { 
+    return true;
+  }
+  if(distance < OUTER_MAX_DIST)
+  { 
+    return false; 
+  }
+
+  /* Second criterion: 'distance' less than minimum distance 
+                       obtained via an analytical expression which is function
+                       of relatives angles 'theta' and 'phi' (defined below)   */
+  
+  // Angle between 'rod' center and X (horizontal) axis: 'theta'
+  double theta = std::atan2(rod.m_yPos, rod.m_xPos);
+
+  // Relative angle between 'rod's orientation and 'theta': 'phi'
+  double phi = rod.m_angle - theta;
+  
+  // 'phi' in interval [-pi/2, pi/2]
+  if(phi < -HALF_PI)
+  {
+      phi = phi + PI;
+  }else if(phi > HALF_PI)
+  {
+      phi = phi - PI;
+  }
+
+  // 'phi' is not directly needed
+  phi = std::cos(ALPHA-std::fabs(phi));
+
+  // Check second criterion
+  if(distance > (std::sqrt(m_OUTER_RADIUS*m_OUTER_RADIUS-Rod::m_HALF_DIAGONAL*Rod::m_HALF_DIAGONAL*(1.0-phi*phi))-Rod::m_HALF_DIAGONAL*phi ))
+  {
+      return true;
+  }else
+  {
+      return false;
+  }
+}
+
+void AnnularCell::fillAnnularCell()
+{
+  /**
+    'fillAnnularCell': Fill the 'AnnularCell' with 'Rod's at random positions with random orientation
+                       that are saved in the 'm_bundle' and referenced in the 'm_grid'.
+                       If after a given number of trials is unable to introduce one 'Rod',
+                       it saves its index for reference in the 'm_missingRods' array.
+  **/
+  
+  // Boolean used to exit loops and mark 'Rod' as missing
+  bool rodsAreTouching;
+  
+  /* Try to fill 'AnnularCell' with 'm_NUMBER_OF_PARTICLES' 'Rod's */
+  for(int i=0; i < m_NUMBER_OF_PARTICLES; i++)
+  {
+    // Assume new 'Rod' will be touching some of the 'rod's already included 
+    rodsAreTouching = true;
+
+    // For each index, try at most 1000 positions
+    for(int trials = 0; trials < 1000; trials++)
+    {
+      // Obtain random position and orientation for new 'm_aux_rod'
+      m_aux_rod.m_xPos  = rndmdist(gen)*m_OUTER_RADIUS;
+      m_aux_rod.m_yPos  = rndmdist(gen)*m_OUTER_RADIUS;
+      m_aux_rod.m_angle = rndmdist(gen)*HALF_PI;
+
+      // Check if new position is touching some of the 'AnnularCell' walls
+      if(rodIsTouchingInnerWall(m_aux_rod)||rodIsTouchingOuterWall(m_aux_rod))
+      {
+        // ... and, if so, try a new position 
+        continue;
+      }
+      else
+      {
+        // Assume new 'm_aux_rod' is not touching any of the 'rod's already included 
+        rodsAreTouching = false;
+        
+        // For all the 'Rod's already included
+        for(int j = 0; j < i; j++)
         {
-            minDist = (Rod::m_HALF_LENGTH+m_INNER_RADIUS*std::cos(phi-lambda))/std::cos(phi);
-            if(distance < minDist){return true;}else{return false;}
+          // ... check if new 'm_aux_rod' is touching it
+          rodsAreTouching = m_aux_rod.isTouchingRod(getRod(j));
+          // ... and if so, break this loop and try again
+          if(rodsAreTouching){ break;}
+        }
+      }
+
+      // If the new position is valid,
+      if(!rodsAreTouching)
+      {
+        // ...  save 'm_aux_rod' in the 'm_bundle' of 'Rod's
+        m_bundle.emplace_back(m_aux_rod);
+        // ... and break the trials for this index
+        break;
+      }
+    }
+
+    // If index could not be inserted
+    if(rodsAreTouching)
+    {
+      // ... save index in array of 'm_missingRods'
+      m_missingRods.push_back(i);
+      // ... report to console that index could not be inserted
+      std::cout << "Rod #" << i << " not included" << std::endl;
+      // ... and put the 'Rod' temporarily outside the 'AnnularCell' in a corner
+      m_bundle.emplace_back(m_OUTER_RADIUS,m_OUTER_RADIUS,-ALPHA);
+    }
+  }
+
+  /* Fill 'm_grid' with the indexes of the 'Rod's 'm_bundle' to know roughly were each rod is */
+  m_grid.fillGrid(m_bundle);
+}
+
+void AnnularCell::fillMissingRods()
+{
+  /**
+    'fillMissingRods': Attempts to introduce the 'm_missingRods' inside the 'AnnularCell', trying several
+                       random orientations for each random position obtained.
+                       Note: Assumes 'fillAnnularCell' has already been called.
+  **/
+  
+  // Boolean used to exit loops and mark 'Rod' as missing
+  bool rodsAreTouching;
+  
+  // Array to save the indexes of the 'Rod's that could not be introduced 
+  std::vector<int> newMissing;
+  
+  /* Attemp to  to introduce the 'm_missingRods' inside the 'AnnularCell' */
+  
+  // For each index in 'm_missingRods'
+  for(int i : m_missingRods)
+  {
+    // Assume missing 'Rod' will be touching some of the 'rod's already included
+    rodsAreTouching = true;
+    
+    // For each index, try at most 500 positions
+    for(int trials = 0; trials < 500; trials++)
+    {
+      // Obtain random position for missing 'Rod'
+      m_aux_rod.m_xPos  = rndmdist(gen)*m_OUTER_RADIUS;
+      m_aux_rod.m_yPos  = rndmdist(gen)*m_OUTER_RADIUS;
+
+      // For each position try at most 100 orientations
+      for(int n = 0; n < 100; n++)
+      {
+        // Obtain random orientation
+        m_aux_rod.m_angle = rndmdist(gen)*HALF_PI;
+
+        // Check if new position is touching some of the 'AnnularCell' walls
+        if(rodIsTouchingInnerWall(m_aux_rod)||rodIsTouchingOuterWall(m_aux_rod))
+        {
+          // ... and, if so, try a new orientation
+          continue;
         }
         else
         {
-            minDist = (Rod::m_HALF_WIDTH+m_INNER_RADIUS*std::sin(phi-lambda))/std::sin(phi);
-            if(distance < minDist){return true;}else{return false;}
-        }
-    }
-}
-
-/* Is rectangle touching the external wall of the cell? */
-// Index version
-bool AnnularCell::rodIsTouchingOuterWall(const int& index)
-{
-    // OUTER RADIUS GREATER THAN HALF_DIAGONAL!!
-    // UNKNOWN BEHAVIOUR OTHERWISE
-    static const double OUTER_MIN_DIST = std::sqrt(m_OUTER_RADIUS*m_OUTER_RADIUS-Rod::m_HALF_LENGTH*Rod::m_HALF_LENGTH) - Rod::m_HALF_WIDTH;
-    static const double OUTER_MAX_DIST = m_OUTER_RADIUS - Rod::m_HALF_DIAGONAL;
-
-    if(index < m_NUMBER_OF_PARTICLES)
-    {
-        m_aux_rod = getRod(index);
-
-        /* Center too far / too close of inner wall*/
-        double distance = std::sqrt(m_aux_rod.m_xPos*m_aux_rod.m_xPos + m_aux_rod.m_yPos*m_aux_rod.m_yPos);
-        if(distance > OUTER_MIN_DIST){ return true; }
-        if(distance < OUTER_MAX_DIST){ return false; }
-
-        /* Intermediate region */
-        double theta = std::atan2(m_aux_rod.m_yPos, m_aux_rod.m_xPos);
-
-        double phi = m_aux_rod.m_angle - theta;
-        if(phi < -HALF_PI)
-        {
-            phi = phi + PI;
-        }else if(phi > HALF_PI)
-        {
-            phi = phi - PI;
-        }
-
-        phi = std::cos(ALPHA-std::fabs(phi));
-
-        if(distance > (std::sqrt(m_OUTER_RADIUS*m_OUTER_RADIUS-Rod::m_HALF_DIAGONAL*Rod::m_HALF_DIAGONAL*(1.0-phi*phi))-Rod::m_HALF_DIAGONAL*phi ))
-        {
-            return true;
-        }else
-        {
-            return false;
-        }
-    }
-    else
-    {
-        return true;
-    }
-}
-
-// Rod version
-bool AnnularCell::rodIsTouchingOuterWall(const Rod& rod)
-{
-
-    static const double OUTER_MIN_DIST = m_OUTER_RADIUS - Rod::m_HALF_WIDTH;
-    static const double OUTER_MAX_DIST = m_OUTER_RADIUS - Rod::m_HALF_DIAGONAL;
-
-    /* Center too far / too close of inner wall*/
-    double distance = std::sqrt(rod.m_xPos*rod.m_xPos + rod.m_yPos*rod.m_yPos);
-    if(distance > OUTER_MIN_DIST){ return true; }
-    if(distance < OUTER_MAX_DIST){ return false; }
-
-    /* Intermediate region */
-    double theta = std::atan2(rod.m_yPos, rod.m_xPos);
-
-    double phi = rod.m_angle - theta;
-    if(phi < -HALF_PI)
-    {
-        phi = phi + PI;
-    }else if(phi > HALF_PI)
-    {
-        phi = phi - PI;
-    }
-
-    phi = std::cos(ALPHA-std::fabs(phi));
-
-    if(distance > (std::sqrt(m_OUTER_RADIUS*m_OUTER_RADIUS-Rod::m_HALF_DIAGONAL*Rod::m_HALF_DIAGONAL*(1.0-phi*phi))-Rod::m_HALF_DIAGONAL*phi ))
-    {
-        return true;
-    }else
-    {
-        return false;
-    }
-}
-
-/* Fill annular cell with rectangles at random positions */
-void AnnularCell::fillAnnularCell() // Private ?
-{
-    bool rodsAreTouching;
-    for(int i=0; i < m_NUMBER_OF_PARTICLES; i++)
-    {
-        rodsAreTouching = true;
-        for(int trials = 0; trials < 1000; trials++)
-        {
-            /* Global approach */
-            m_aux_rod.m_xPos  = rndmdist(gen)*m_OUTER_RADIUS;
-            m_aux_rod.m_yPos  = rndmdist(gen)*m_OUTER_RADIUS;
-            m_aux_rod.m_angle = rndmdist(gen)*HALF_PI;
-
-            /* Check if position is valid */
-            if(rodIsTouchingInnerWall(m_aux_rod)||rodIsTouchingOuterWall(m_aux_rod))
+          // Assume new 'm_aux_rod' is not touching any of the 'rod's already included 
+          rodsAreTouching = false;
+          
+          // For all the 'Rod's already included
+          for(int j = 0; j < NUMBER_OF_RODS; j++)
+          {
+            if(j!=i)
             {
-                continue;
+              // ... check if new 'm_aux_rod' is touching it
+              rodsAreTouching = m_aux_rod.isTouchingRod(getRod(j));
+              // ... and if so, break this loop and try again
+              if(rodsAreTouching){ break;}
             }
-            else
-            {
-                rodsAreTouching = false;
-                for(int j = 0; j < i; j++)
-                {
-                    rodsAreTouching = m_aux_rod.isTouchingRod(getRod(j));
-                    if(rodsAreTouching){ break;}
-                }
-            }
-
-            /* Save rod */
-            if(!rodsAreTouching)
-            {
-                m_bundle.emplace_back(m_aux_rod);
-                break;
-            }
+          }
         }
 
-        /* Create vector or the indexes that could not be inserted */
-        if(rodsAreTouching)
+        // If the new position is valid,
+        if(!rodsAreTouching)
         {
-            m_missingRods.push_back(i);
-            std::cout << "Rod #" << i << " not included" << std::endl;
-            m_bundle.emplace_back(m_OUTER_RADIUS,m_OUTER_RADIUS,-ALPHA);
+          // ... move index to new coordinates in the 'm_grid'
+          m_grid.moveIndex(i,m_grid.getGridCoords(m_bundle[i]),m_grid.getGridCoords(m_aux_rod));
+          // ...  save 'm_aux_rod' in the 'm_bundle' of 'Rod's
+          m_bundle[i] = m_aux_rod;
+          // ... and break the orientation trials for this index
+          break;
         }
+      }
+      
+      // If the new position was accepted
+      if(!rodsAreTouching){
+        // ... break the position trials for this index
+        break;
+      }
     }
 
-    /* Fill grid of indexes to know roughly were each rod is*/
-    m_grid.fillGrid(m_bundle);
-
-    std::cout << std::endl << "\t CELL FILLED" << std::endl;
-}
-
-/* Try to fill rods that were missing */
-void AnnularCell::fillMissingRods()
-{
-    bool rodsAreTouching;
-    std::vector<int> newMissing;
-    for(int i : m_missingRods)
+    // If index could not be inserted
+    if(rodsAreTouching)
     {
-        rodsAreTouching = true;
-        for(int trials = 0; trials < 500; trials++)
-        {
-            m_aux_rod.m_xPos  = rndmdist(gen)*m_OUTER_RADIUS;
-            m_aux_rod.m_yPos  = rndmdist(gen)*m_OUTER_RADIUS;
-
-            /* For each position try several different angles*/
-            for(int n = 0; n < 100; n++)
-            {
-                m_aux_rod.m_angle = rndmdist(gen)*HALF_PI;
-
-                /* Check if position is valid */
-                if(rodIsTouchingInnerWall(m_aux_rod)||rodIsTouchingOuterWall(m_aux_rod))
-                {
-                    continue;
-                }
-                else
-                {
-                    rodsAreTouching = false;
-                    for(int j = 0; j < NUMBER_OF_RODS; j++)
-                    {
-                        if(j!=i)
-                        {
-                            rodsAreTouching = m_aux_rod.isTouchingRod(getRod(j));
-                            if(rodsAreTouching){ break;}
-                        }
-                    }
-                }
-
-                /* Save rod */
-                if(!rodsAreTouching)
-                {
-                    m_grid.moveIndex(i,m_grid.getGridCoords(m_bundle[i]),m_grid.getGridCoords(m_aux_rod));
-                    m_bundle[i] = m_aux_rod;
-                    break;
-                }
-            }
-            if(!rodsAreTouching){break;}
-
-        }
-
-        if(rodsAreTouching)
-        {
-            newMissing.push_back(i);
-        }
+      // ... save index in array of 'newMissing' 'Rod's
+      newMissing.push_back(i);
     }
+  }
 
-    m_missingRods.clear();
-    m_missingRods = newMissing;
-    std::cout << m_missingRods.size() << " rods missing" << std::endl;
+  // Clear the content of the old 'm_missingRods'
+  m_missingRods.clear();
+  
+  // Save array of 'newMissing' 'Rod's
+  m_missingRods = newMissing;
+  
+  // Report to console the number of 'Rod's still missing
+  std::cout << m_missingRods.size() << " rods missing" << std::endl;
 }
 
-/*
-    Fill rods from file with cols: index, X, Y, PHI, q1, q2, q3, q4
-    were q_ are order parameters of the liquid crystal
-*/
 void AnnularCell::fillAnnularCellFromFile(std::string filepath, const int& numRodsInFile)
 {
-    /** ASSUMES numRodsInFile <= NUMBER_OF_RODS **/
-    double dummy;
-    std::ifstream savedconfiguration;
-    savedconfiguration.open(filepath);
-    for(int i=0; i < numRodsInFile; i++)
-    {
-        savedconfiguration >> dummy >> m_aux_rod.m_xPos >> m_aux_rod.m_yPos >> m_aux_rod.m_angle
-                           >> dummy >> dummy >> dummy >> dummy; // From order parameters files
-        m_bundle.emplace_back(m_aux_rod);
-    }
-    savedconfiguration.close();
+  /**
+    'fillAnnularCellFromFile': Fill the 'AnnularCell' from a file with full path 'filepath' 
+                               with 8 columns: index, X, Y, PHI, q1, q2, q3, q4
+                               were q_ are order parameters of the liquid crystal.
+                               Note: only the 'X', 'Y' and 'Phi' columns are used, the rest is discarded.
+                               Note: it is assumed that 'numRodsInFile' <= 'm_NUMBER_OF_RODS'.
+  **/
+  
+  // Auxiliar dummy variable
+  double dummy;
+  
+  // Input stream of data from 'savedConfiguration'
+  std::ifstream savedConfiguration;
+  
+  // Open 'savedConfiguration'
+  savedConfiguration.open(filepath);
+  
+  // For each 'Rod' of data
+  for(int i=0; i < numRodsInFile; i++)
+  {
+    // ... save data to 'm_aux_rod'
+    savedConfiguration >> dummy >> m_aux_rod.m_xPos >> m_aux_rod.m_yPos >> m_aux_rod.m_angle
+                       >> dummy >> dummy >> dummy >> dummy;
+    // ... and put 'm_aux_rod' into 'm_bundle' of 'Rod's
+    m_bundle.emplace_back(m_aux_rod);
+  }
+  
+  // Close 'savedConfiguration'
+  savedConfiguration.close();
 
-    for(int i=numRodsInFile; i<NUMBER_OF_RODS; i++)
-    {
-        m_missingRods.push_back(i);
-        m_bundle.emplace_back(m_OUTER_RADIUS,m_OUTER_RADIUS,-ALPHA);
-    }
+  // If 'savedConfiguration' did not contain all the desired 'Rod's 
+  for(int i=numRodsInFile; i<NUMBER_OF_RODS; i++)
+  {
+    // ... save index as 'm_missingRods'
+    m_missingRods.push_back(i);
+    // ... and put the 'Rod' temporarily outside the 'AnnularCell' in a corner
+    m_bundle.emplace_back(m_OUTER_RADIUS,m_OUTER_RADIUS,-ALPHA);
+  }
 
-    m_grid.fillGrid(m_bundle);
+  // Fill 'm_grid' with the indexes of the 'Rod's 'm_bundle' to know roughly were each rod is
+  m_grid.fillGrid(m_bundle);
 }
