@@ -114,6 +114,7 @@ public:
   /**
     'fillMissingRods': Attempts to introduce the 'm_missingRods' inside the 'AnnularCell', trying several
                        random orientations for each random position obtained.
+                       Note: Assumes 'fillAnnularCell' has already been called.
   **/
   
   void fillAnnularCellFromFile(std::string filepath, const int& numRodsInFile);
