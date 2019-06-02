@@ -1,3 +1,23 @@
+/****
+  'montecarloRoutines.h':
+  --------------------
+  Declaration of 'montecarloRoutines'.
+  For implementation details, see 'montecarloRoutines.h'.
+  
+  Needs: 'AnnularCell.h'
+  
+  --------------------
+  The 'montecarloRoutines' define how a Monte Carlo step
+  is done in the 'AnnularCell' representing the system.
+  It also include functions that compute and save the 
+  local order parameters -- nematic, tetratic and smectic, 
+  of the liquid crystal of 'Rod's inside the 'AnnularCell'. 
+        
+  --------------------
+  Last modified: 2019-06-02 
+  By: M. E. Maza Cuello
+****/
+
 #include "montecarloRoutines.h"
 #include <random>
 #include <algorithm>
@@ -5,207 +25,203 @@
 #include <sstream>
 #include <fstream>
 
+/** PARAMETERS OBTAINED FROM 'parameters.cpp' **/
+// Number of Rods
+extern const int    NUMBER_OF_RODS;
+// Lengths
+extern const double LENGTH;
+extern const double HALF_DIAGONAL;
+extern const double OUTER_RADIUS;
+// Angles
+extern const double PI;
+extern const double HALF_PI;
+
+/* Methods */
+
+// Random number generator
 std::mt19937_64 g(98710536);
 std::uniform_real_distribution<double> dist(-1.0,1.0);
 
-/* External parameters from 'parameters.cpp' */
-extern const int    NUMBER_OF_RODS;
-extern const double LENGTH;
-extern const double HALF_PI;
-extern const double PI;
-extern const double OUTER_RADIUS;
-extern const double HALF_DIAGONAL;
-
 void stepMontecarlo(AnnularCell& cell)
 {
-    static double DELTA_SPACE = 0.1*LENGTH;
-    static double DELTA_ANGLE = 0.1*HALF_PI;
-    static const double MAX_RADIUS = OUTER_RADIUS-HALF_DIAGONAL;
-    static const double INV_NUMBER_OF_RODS = 1.0d/NUMBER_OF_RODS;
-    static std::vector<int> indexes(NUMBER_OF_RODS);
+  /**
+    'stepMontecarlo': Perform a Monte Carlo step on the 'cell'.
+                      I. e. for each 'Rod' inside the 'cell', try
+                      to randomly make a (small) change in its 
+                      position and orientation.
+                      The changes' amplitudes are dynamically adjusted
+                      so that the acceptation probability is ~ 50 %.
+  **/
+  
+  // Auxiliary constant variables
+  static const double MAX_RADIUS = OUTER_RADIUS-HALF_DIAGONAL;
+  static const double INV_NUMBER_OF_RODS = 1.0d/NUMBER_OF_RODS;
+  // Auxiliary variables:
+  static double DELTA_SPACE = 0.1*LENGTH;   // Maximum variation of coordinates
+  static double DELTA_ANGLE = 0.1*HALF_PI;  // Maximum variation of orientation
+  // Auxiliary array of indexes of the 'Rod's
+  static std::vector<int> indexes(NUMBER_OF_RODS);
+  
+  // Generate random index permutation
+  std::iota(indexes.begin(), indexes.end(), 0);
+  std::shuffle(indexes.begin(), indexes.end(), g);
+  
+  // Boolean used to exit loops and mark new position as valid
+  bool validPosition;
+  // Number of 'Rod's that have been succesfully moved
+  int  numSuccess = 0;
+  for(int i : indexes)
+  {
+    // Get 'Rod' with index 'i'
+    cell.m_aux_rod = cell.getRod(i);
 
-    bool validPosition;
-    int  numSuccess = 0;
-
-    // Generate random index permutation
-    std::iota(indexes.begin(), indexes.end(), 0);
-    std::shuffle(indexes.begin(), indexes.end(), g);
-    //for(int i = 0; i < NUMBER_OF_RODS; i++)
-    for(int i : indexes)
+    /* Add random displacement */
+    // Coordinates (max displacement = DELTA_SPACE)
+    cell.m_aux_rod.m_xPos  += dist(g)*DELTA_SPACE;
+    cell.m_aux_rod.m_yPos  += dist(g)*DELTA_SPACE;
+    // Orientation (max displacement = DELTA_ANGLE)
+    cell.m_aux_rod.m_angle += dist(g)*DELTA_ANGLE;
+    
+    /* Adjust positions to fit inside the 'AnnularCell' */
+    // Coordinates in interval [-OUTER_RADIUS, OUTER_RADIUS]
+    if(cell.m_aux_rod.m_xPos > OUTER_RADIUS){ cell.m_aux_rod.m_xPos = MAX_RADIUS;}
+    else if(cell.m_aux_rod.m_xPos < - OUTER_RADIUS){ cell.m_aux_rod.m_xPos = -MAX_RADIUS;}
+    if(cell.m_aux_rod.m_yPos > OUTER_RADIUS){ cell.m_aux_rod.m_yPos = MAX_RADIUS;}
+    else if(cell.m_aux_rod.m_yPos < - OUTER_RADIUS){ cell.m_aux_rod.m_yPos = -MAX_RADIUS;}
+    // Orientation in [-HALF_PI, HALF_PI]
+    while(cell.m_aux_rod.m_angle > HALF_PI)
     {
-        cell.m_aux_rod = cell.getRod(i);
+        cell.m_aux_rod.m_angle -= PI;
+    }
+    while(cell.m_aux_rod.m_angle < -HALF_PI)
+    {
+        cell.m_aux_rod.m_angle += PI;
+    }
 
-        cell.m_aux_rod.m_xPos  += dist(g)*DELTA_SPACE;
-        if(cell.m_aux_rod.m_xPos > OUTER_RADIUS){ cell.m_aux_rod.m_xPos = MAX_RADIUS;}
-        else if(cell.m_aux_rod.m_xPos < - OUTER_RADIUS){ cell.m_aux_rod.m_xPos = -MAX_RADIUS;}
-        cell.m_aux_rod.m_yPos  += dist(g)*DELTA_SPACE;
-        if(cell.m_aux_rod.m_yPos > OUTER_RADIUS){ cell.m_aux_rod.m_yPos = MAX_RADIUS;}
-        else if(cell.m_aux_rod.m_yPos < - OUTER_RADIUS){ cell.m_aux_rod.m_yPos = -MAX_RADIUS;}
-        cell.m_aux_rod.m_angle += dist(g)*DELTA_ANGLE;
-        while(cell.m_aux_rod.m_angle > HALF_PI)
+    // Assume the new position is valid
+    validPosition = true;
+    // If 'm_aux_rod' is touching inner or outer walls of 'cell',
+    if(cell.rodIsTouchingInnerWall(cell.m_aux_rod)||cell.rodIsTouchingOuterWall(cell.m_aux_rod))
+    {
+      // ... new position is not valid
+      validPosition = false;
+    }else{
+      // If not, get neighbours of 'm_aux_rod'      
+      cell.m_grid.m_neighbours = cell.m_grid.getNeighbours(cell.m_grid.getGridCoords(cell.m_aux_rod));
+      for(int idx : cell.m_grid.m_neighbours)
+      { 
+        if(idx != i)
         {
-            cell.m_aux_rod.m_angle -= PI;
-        }
-        while(cell.m_aux_rod.m_angle < -HALF_PI)
-        {
-            cell.m_aux_rod.m_angle += PI;
-        }
-
-        cell.m_grid.m_neighbours = cell.m_grid.getNeighbours(cell.m_grid.getGridCoords(cell.m_aux_rod));
-
-        validPosition = true;
-        if(cell.rodIsTouchingInnerWall(cell.m_aux_rod)||cell.rodIsTouchingOuterWall(cell.m_aux_rod))
-        {
+          // ... check if is touching any neighbour...
+          if(cell.m_aux_rod.isTouchingRod(cell.getRod(idx)))
+          {
+            // ... and if it is, new position is not valid 
             validPosition = false;
-        }else{
-            for(int idx : cell.m_grid.m_neighbours)
-            {
-                if(idx != i)
-                {
-                    if(cell.m_aux_rod.isTouchingRod(cell.getRod(idx)))
-                    {
-                        validPosition = false;
-                        break;
-                    }
-                }
-            }
+            break;
+          }
         }
-
-        if(validPosition)
-        {
-            cell.m_grid.moveIndex(i,cell.m_grid.getGridCoords(cell.m_bundle[i]), cell.m_grid.getGridCoords(cell.m_aux_rod));
-            cell.m_bundle[i]= cell.m_aux_rod;
-            numSuccess++;
-        }
+      }
     }
 
-    /* Correction of deltas to generate 50% acceptance */
-    DELTA_SPACE *= (0.5d+double(numSuccess)*INV_NUMBER_OF_RODS);
-    DELTA_ANGLE *= (0.5d+double(numSuccess)*INV_NUMBER_OF_RODS);
-
-}
-
-void getOrderParameters(AnnularCell& cell){
-
-    static double scale = 2.0d*PI/(1.2d*LENGTH);
-    static std::ofstream Qdat;
-
-    //int sec = (int)std::floor(steps/1000000);
-    std::ostringstream filename;
-    filename << "doc";
-    //filename << std::setfill( '0' ) << std::setw( 3 ) << sec;
-    filename << ".txt";
-
-    Qdat.open( filename.str().c_str() );
-
-    double tilt, zeta;
-    double sum_cos2, sum_sin2;
-    double sum_cos4, sum_sin4;
-    double sum_cosS, sum_sinS;
-
-    for(int i=0; i<NUMBER_OF_RODS; i++){
-
-        sum_cos2 = 0.0d;
-        sum_sin2 = 0.0d;
-        cell.m_grid.m_neighbours = cell.m_grid.getNeighbours(cell.m_grid.getGridCoords(cell.m_bundle[i]));
-        for(int index : cell.m_grid.m_neighbours)
-        {
-            sum_cos2 += std::cos(2.0d*cell.m_bundle[index].m_angle);      // Mean value of cos(2phi) and sin(2phi) to get the nematic (eigen)direction
-            sum_sin2 += std::sin(2.0d*cell.m_bundle[index].m_angle);      // index INCLUDES current 'i' rod
-        }
-        tilt = 0.5d*std::atan2(sum_sin2,sum_cos2);
-
-        sum_cos2 = 0.0d; sum_sin2 = 0.0d;
-        sum_cos4 = 0.0d; sum_sin4 = 0.0d;
-        sum_cosS = 0.0d; sum_sinS = 0.0d;
-
-        //cell.m_grid.m_neighbours = cell.m_grid.getNeighbours(cell.m_grid.getGridCoords(cell.m_aux_rod));
-        for(int index : cell.m_grid.m_neighbours)
-        {
-            zeta = 2.0d*(cell.m_bundle[index].m_angle-tilt);
-            sum_cos2 += std::cos(zeta);      // Mean value of cos(2phi) and sin(2phi) to get the nematic (eigen)direction
-            sum_sin2 += std::sin(zeta);      // index INCLUDES current 'i' rod
-
-            sum_cos4 += std::cos(2.0d*zeta);      // Mean value of cos(2phi) and sin(2phi) to get the nematic (eigen)direction
-            sum_sin4 += std::sin(2.0d*zeta);      // index INCLUDES current 'i' rod
-
-            zeta = scale*(std::cos(tilt)*(cell.m_bundle[index].m_xPos-cell.m_bundle[i].m_xPos) + std::sin(tilt)*(cell.m_bundle[index].m_yPos-cell.m_bundle[i].m_yPos));
-            sum_cosS += std::cos(zeta); // cos( 2pi/(1.2L) * zeta)
-            sum_sinS += std::sin(zeta);
-        }
-
-        zeta = 1.0d/cell.m_grid.m_neighbours.size();
-        Qdat << i+1 << " " << cell.m_bundle[i].m_xPos << " " << cell.m_bundle[i].m_yPos << " "
-             << cell.m_bundle[i].m_angle << " " << tilt << " "                           // Save configuration (and tilt (eigen)angle)
-             << std::sqrt(sum_cos2*sum_cos2 + sum_sin2*sum_sin2)*zeta << " "             // Nematic order parameter Q1
-             << std::sqrt(sum_cos4*sum_cos4 + sum_sin4*sum_sin4)*zeta << " "             // Tetratic order parameter Q2
-             << std::sqrt(sum_cosS*sum_cosS + sum_sinS*sum_sinS)*zeta <<                 // Smectic order parameter Qs
-             '\r' << '\n';
-
+    // If position is valid
+    if(validPosition)
+    {
+      // ... move index to new coordinates in the 'm_grid'
+      cell.m_grid.moveIndex(i,cell.m_grid.getGridCoords(cell.m_bundle[i]), cell.m_grid.getGridCoords(cell.m_aux_rod));
+      // ... save 'm_aux_rod' in the corresponding index
+      cell.m_bundle[i]= cell.m_aux_rod;
+      // ... and add one success
+      numSuccess++;
     }
-    Qdat.close();
+  }
 
+  /* Correct maximum displacements to generate ~ 50 % acceptance */
+  DELTA_SPACE *= (0.5d+double(numSuccess)*INV_NUMBER_OF_RODS);
+  DELTA_ANGLE *= (0.5d+double(numSuccess)*INV_NUMBER_OF_RODS);
 }
 
 void getOrderParameters(AnnularCell& cell, std::string& filename){
+  /**
+    'getOrderParameters': Compute the local nematic, tetratic and smectic 
+                          order parameters of the liquid crystal of 'Rod's. 
+                          Save the configuration and the order parameters
+                          in a .txt file called 'filename.txt'.
+  **/
+  
+  // Auxiliar constant variable
+  static const double scale = 2.0d*PI/(1.2d*LENGTH);
+  
+  // File stream
+  std::ofstream Qdat;
+  Qdat.open(filename);
 
-    static double scale = 2.0d*PI/(1.2d*LENGTH);
-    static std::ofstream Qdat;
+  /* Auxiliar angular variables */ 
+  // Angles
+  double tilt: // Local nematic director
+  double zeta; // Double of relative orientation with respect to tilt 
+  // Sines and cosines for order parameters
+  double sum_cos2, sum_sin2; // Sum of cos(2*angle) and sin(2*angle)
+  double sum_cos4, sum_sin4; // Sum of cos(4*angle) and sin(4*angle)
+  double sum_cosS, sum_sinS; // Sum of cos(scale*h) and sin(scale*h), 
+                             // were 'scale' is inverse distance between smectic layers 
+                             // and 'h' is relative position with respect to the local layer
 
-//    //int sec = (int)std::floor(steps/1000000);
-//    std::ostringstream filename;
-//    filename << "doc";
-//    //filename << std::setfill( '0' ) << std::setw( 3 ) << sec;
-//    filename << ".txt";
-
-    Qdat.open(filename);
-
-    double tilt, zeta;
-    double sum_cos2, sum_sin2;
-    double sum_cos4, sum_sin4;
-    double sum_cosS, sum_sinS;
-
-    for(int i=0; i<NUMBER_OF_RODS; i++){
-
-        sum_cos2 = 0.0d;
-        sum_sin2 = 0.0d;
-        cell.m_grid.m_neighbours = cell.m_grid.getNeighbours(cell.m_grid.getGridCoords(cell.m_bundle[i]));
-        for(int index : cell.m_grid.m_neighbours)
-        {
-            sum_cos2 += std::cos(2.0d*cell.m_bundle[index].m_angle);      // Mean value of cos(2phi) and sin(2phi) to get the nematic (eigen)direction
-            sum_sin2 += std::sin(2.0d*cell.m_bundle[index].m_angle);      // index INCLUDES current 'i' rod
-        }
-        tilt = 0.5d*std::atan2(sum_sin2,sum_cos2);
-
-        sum_cos2 = 0.0d; sum_sin2 = 0.0d;
-        sum_cos4 = 0.0d; sum_sin4 = 0.0d;
-        sum_cosS = 0.0d; sum_sinS = 0.0d;
-
-        //cell.m_grid.m_neighbours = cell.m_grid.getNeighbours(cell.m_grid.getGridCoords(cell.m_aux_rod));
-        for(int index : cell.m_grid.m_neighbours)
-        {
-            zeta = 2.0d*(cell.m_bundle[index].m_angle-tilt);
-            sum_cos2 += std::cos(zeta);      // Mean value of cos(2phi) and sin(2phi) to get the nematic (eigen)direction
-            sum_sin2 += std::sin(zeta);      // index INCLUDES current 'i' rod
-
-            sum_cos4 += std::cos(2.0d*zeta);      // Mean value of cos(2phi) and sin(2phi) to get the nematic (eigen)direction
-            sum_sin4 += std::sin(2.0d*zeta);      // index INCLUDES current 'i' rod
-
-            zeta = scale*(std::cos(tilt)*(cell.m_bundle[index].m_xPos-cell.m_bundle[i].m_xPos) + std::sin(tilt)*(cell.m_bundle[index].m_yPos-cell.m_bundle[i].m_yPos));
-            sum_cosS += std::cos(zeta); // cos( 2pi/(1.2L) * zeta)
-            sum_sinS += std::sin(zeta);
-        }
-
-        zeta = 1.0d/cell.m_grid.m_neighbours.size();
-        Qdat << i+1 << " " << cell.m_bundle[i].m_xPos << " " << cell.m_bundle[i].m_yPos << " "
-             << cell.m_bundle[i].m_angle << " " << tilt << " "                           // Save configuration (and tilt (eigen)angle)
-             << std::sqrt(sum_cos2*sum_cos2 + sum_sin2*sum_sin2)*zeta << " "             // Nematic order parameter Q1
-             << std::sqrt(sum_cos4*sum_cos4 + sum_sin4*sum_sin4)*zeta << " "             // Tetratic order parameter Q2
-             << std::sqrt(sum_cosS*sum_cosS + sum_sinS*sum_sinS)*zeta <<                 // Smectic order parameter Qs
-             '\r' << '\n';
-
+  for(int i=0; i<NUMBER_OF_RODS; i++){
+    // Initialize sums to zero
+    sum_cos2 = 0.0d;
+    sum_sin2 = 0.0d;
+    
+    /* Compute local nematic director */
+    // Get neighbours of 'Rod' of index 'i'
+    cell.m_grid.m_neighbours = cell.m_grid.getNeighbours(cell.m_grid.getGridCoords(cell.m_bundle[i]));
+    for(int index : cell.m_grid.m_neighbours)
+    {
+      // NOTE: index INCLUDES current 'i' 'Rod'
+      sum_cos2 += std::cos(2.0d*cell.m_bundle[index].m_angle);
+      sum_sin2 += std::sin(2.0d*cell.m_bundle[index].m_angle);  
     }
-    Qdat.close();
+    // Local nematic director
+    tilt = 0.5d*std::atan2(sum_sin2,sum_cos2);
 
+    // Initialize sums to zero
+    sum_cos2 = 0.0d; sum_sin2 = 0.0d;
+    sum_cos4 = 0.0d; sum_sin4 = 0.0d;
+    sum_cosS = 0.0d; sum_sinS = 0.0d;
+
+    /* Extract order parameters */
+    for(int index : cell.m_grid.m_neighbours)
+    {
+      // Relative angle between 'Rod' orientation and local nematic director
+      zeta = 2.0d*(cell.m_bundle[index].m_angle-tilt);
+      
+      // Sum for local nematic order parameter
+      sum_cos2 += std::cos(zeta);
+      sum_sin2 += std::sin(zeta);
+      // Sum for local tetratic order parameter
+      sum_cos4 += std::cos(2.0d*zeta);
+      sum_sin4 += std::sin(2.0d*zeta);
+
+      // Relative position between 'Rod' and local smectic layers
+      zeta = scale*(std::cos(tilt)*(cell.m_bundle[index].m_xPos-cell.m_bundle[i].m_xPos) + std::sin(tilt)*(cell.m_bundle[index].m_yPos-cell.m_bundle[i].m_yPos));
+      
+      // Sum for local smectic order parameter
+      sum_cosS += std::cos(zeta);
+      sum_sinS += std::sin(zeta);
+    }
+
+    // Inverse number of neighbours
+    zeta = 1.0d/cell.m_grid.m_neighbours.size();
+    
+    /* Save local information */
+    Qdat << i+1 << " " << cell.m_bundle[i].m_xPos << " " << cell.m_bundle[i].m_yPos << " " // Index  and Position (x,y)
+         << cell.m_bundle[i].m_angle << " " << tilt << " "                // Orientation and local tilt
+         << std::sqrt(sum_cos2*sum_cos2 + sum_sin2*sum_sin2)*zeta << " "  // Nematic  order parameter Q1
+         << std::sqrt(sum_cos4*sum_cos4 + sum_sin4*sum_sin4)*zeta << " "  // Tetratic order parameter Q2
+         << std::sqrt(sum_cosS*sum_cosS + sum_sinS*sum_sinS)*zeta <<      // Smectic  order parameter Qs
+         '\r' << '\n'; // New line
+
+  }
+  
+  // Close file stream
+  Qdat.close();
 }
-
