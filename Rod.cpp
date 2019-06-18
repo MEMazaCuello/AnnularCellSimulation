@@ -152,15 +152,7 @@ bool Rod::isTouchingRod(const Rod& otherRod)
   }
 
   // Check second criterion
-  if(distance < minDist)
-  {
-    return true;
-  }
-  else
-  {
-    return false;
-  }
-
+  return (distance < minDist);
 }
 
 
