@@ -35,6 +35,16 @@ void stepMontecarlo(AnnularCell& cell);
                       so that the acceptation probability is ~ 50 %.
   **/
 
+void stepMontecarloNeighbourhood(AnnularCell& cell);
+  /**
+    'stepMontecarloNeighbourhood': Perform a Monte Carlo step on the 'cell'.
+                                   I. e. for each grid neighborhood inside the 'cell', try
+                                   to randomly make a (small) change in its
+                                   'Rod's' position and orientation.
+                                   The changes' amplitudes are dynamically adjusted
+                                   so that the acceptation probability is ~ 50 %.
+  **/
+
 void getOrderParameters(AnnularCell& cell, std::string& filename);
   /**
     'getOrderParameters': Compute the local nematic, tetratic and smectic 
