@@ -3,18 +3,18 @@
   --------------------
   Declaration of 'montecarloRoutines'.
   For implementation details, see 'montecarloRoutines.h'.
-  
+
   Needs: 'AnnularCell.h'
-  
+
   --------------------
   The 'montecarloRoutines' define how a Monte Carlo step
   is done in the 'AnnularCell' representing the system.
-  It also include functions that compute and save the 
-  local order parameters -- nematic, tetratic and smectic, 
-  of the liquid crystal of 'Rod's inside the 'AnnularCell'. 
-        
+  It also include functions that compute and save the
+  local order parameters -- nematic, tetratic and smectic,
+  of the liquid crystal of 'Rod's inside the 'AnnularCell'.
+
   --------------------
-  Last modified: 2019-06-02 
+  Last modified: 2019-06-02
   By: M. E. Maza Cuello
 ****/
 
@@ -35,6 +35,8 @@ extern const double OUTER_RADIUS;
 // Angles
 extern const double PI;
 extern const double HALF_PI;
+// Order Parameters
+extern const double AVG_RADIUS;
 
 /* Methods */
 
@@ -47,12 +49,12 @@ void stepMontecarlo(AnnularCell& cell)
   /**
     'stepMontecarlo': Perform a Monte Carlo step on the 'cell'.
                       I. e. for each 'Rod' inside the 'cell', try
-                      to randomly make a (small) change in its 
+                      to randomly make a (small) change in its
                       position and orientation.
                       The changes' amplitudes are dynamically adjusted
                       so that the acceptation probability is ~ 50 %.
   **/
-  
+
   // Auxiliary constant variables
   static const double MAX_RADIUS = OUTER_RADIUS-HALF_DIAGONAL;
   static const double INV_NUMBER_OF_RODS = 1.0d/NUMBER_OF_RODS;
@@ -61,11 +63,11 @@ void stepMontecarlo(AnnularCell& cell)
   static double DELTA_ANGLE = 0.1*HALF_PI;  // Maximum variation of orientation
   // Auxiliary array of indexes of the 'Rod's
   static std::vector<int> indexes(NUMBER_OF_RODS);
-  
+
   // Generate random index permutation
   std::iota(indexes.begin(), indexes.end(), 0);
   std::shuffle(indexes.begin(), indexes.end(), g);
-  
+
   // Boolean used to exit loops and mark new position as valid
   bool validPosition;
   // Number of 'Rod's that have been succesfully moved
@@ -81,7 +83,7 @@ void stepMontecarlo(AnnularCell& cell)
     cell.m_aux_rod.m_yPos  += dist(g)*DELTA_SPACE;
     // Orientation (max displacement = DELTA_ANGLE)
     cell.m_aux_rod.m_angle += dist(g)*DELTA_ANGLE;
-    
+
     /* Adjust positions to fit inside the 'AnnularCell' */
     // Coordinates in interval [-OUTER_RADIUS, OUTER_RADIUS]
     if(cell.m_aux_rod.m_xPos > OUTER_RADIUS){ cell.m_aux_rod.m_xPos = MAX_RADIUS;}
@@ -106,16 +108,16 @@ void stepMontecarlo(AnnularCell& cell)
       // ... new position is not valid
       validPosition = false;
     }else{
-      // If not, get neighbours of 'm_aux_rod'      
+      // If not, get neighbours of 'm_aux_rod'
       cell.m_grid.m_neighbours = cell.m_grid.getNeighbours(cell.m_grid.getGridCoords(cell.m_aux_rod));
       for(int idx : cell.m_grid.m_neighbours)
-      { 
+      {
         if(idx != i)
         {
           // ... check if is touching any neighbour...
           if(cell.m_aux_rod.isTouchingRod(cell.getRod(idx)))
           {
-            // ... and if it is, new position is not valid 
+            // ... and if it is, new position is not valid
             validPosition = false;
             break;
           }
@@ -177,7 +179,7 @@ void stepMontecarloNeighbourhood(AnnularCell& cell)
     gi = gbox % cell.m_grid.m_BOXES;
     gj = gbox / cell.m_grid.m_BOXES;
 
-    indexes = cell.m_grid.getBox(gi, gj);
+    indexes = cell.m_grid.m_map[gi][gj];
     cell.m_grid.m_neighbours = cell.m_grid.getNeighbours(gi, gj);
     for(int i : indexes)
     {
@@ -251,43 +253,43 @@ void stepMontecarloNeighbourhood(AnnularCell& cell)
 
 void getOrderParameters(AnnularCell& cell, std::string& filename){
   /**
-    'getOrderParameters': Compute the local nematic, tetratic and smectic 
-                          order parameters of the liquid crystal of 'Rod's. 
+    'getOrderParameters': Compute the local nematic, tetratic and smectic
+                          order parameters of the liquid crystal of 'Rod's.
                           Save the configuration and the order parameters
                           in a .txt file called 'filename.txt'.
   **/
-  
+
   // Auxiliar constant variable
   static const double scale = 2.0d*PI/(1.2d*LENGTH);
-  
+
   // File stream
   std::ofstream Qdat;
   Qdat.open(filename);
 
-  /* Auxiliar angular variables */ 
+  /* Auxiliar angular variables */
   // Angles
-  double tilt: // Local nematic director
-  double zeta; // Double of relative orientation with respect to tilt 
+  double tilt; // Local nematic director
+  double zeta; // Double of relative orientation with respect to tilt
   // Sines and cosines for order parameters
   double sum_cos2, sum_sin2; // Sum of cos(2*angle) and sin(2*angle)
   double sum_cos4, sum_sin4; // Sum of cos(4*angle) and sin(4*angle)
-  double sum_cosS, sum_sinS; // Sum of cos(scale*h) and sin(scale*h), 
-                             // were 'scale' is inverse distance between smectic layers 
+  double sum_cosS, sum_sinS; // Sum of cos(scale*h) and sin(scale*h),
+                             // were 'scale' is inverse distance between smectic layers
                              // and 'h' is relative position with respect to the local layer
 
   for(int i=0; i<NUMBER_OF_RODS; i++){
     // Initialize sums to zero
     sum_cos2 = 0.0d;
     sum_sin2 = 0.0d;
-    
+
     /* Compute local nematic director */
     // Get neighbours of 'Rod' of index 'i'
-    cell.m_grid.m_neighbours = cell.m_grid.getNeighbours(cell.m_grid.getGridCoords(cell.m_bundle[i]));
+    cell.m_grid.m_neighbours = getAveragingIndexes(cell.m_grid, cell.m_bundle[i]);
     for(int index : cell.m_grid.m_neighbours)
     {
       // NOTE: index INCLUDES current 'i' 'Rod'
       sum_cos2 += std::cos(2.0d*cell.m_bundle[index].m_angle);
-      sum_sin2 += std::sin(2.0d*cell.m_bundle[index].m_angle);  
+      sum_sin2 += std::sin(2.0d*cell.m_bundle[index].m_angle);
     }
     // Local nematic director
     tilt = 0.5d*std::atan2(sum_sin2,sum_cos2);
@@ -302,7 +304,7 @@ void getOrderParameters(AnnularCell& cell, std::string& filename){
     {
       // Relative angle between 'Rod' orientation and local nematic director
       zeta = 2.0d*(cell.m_bundle[index].m_angle-tilt);
-      
+
       // Sum for local nematic order parameter
       sum_cos2 += std::cos(zeta);
       sum_sin2 += std::sin(zeta);
@@ -312,7 +314,7 @@ void getOrderParameters(AnnularCell& cell, std::string& filename){
 
       // Relative position between 'Rod' and local smectic layers
       zeta = scale*(std::cos(tilt)*(cell.m_bundle[index].m_xPos-cell.m_bundle[i].m_xPos) + std::sin(tilt)*(cell.m_bundle[index].m_yPos-cell.m_bundle[i].m_yPos));
-      
+
       // Sum for local smectic order parameter
       sum_cosS += std::cos(zeta);
       sum_sinS += std::sin(zeta);
@@ -320,7 +322,7 @@ void getOrderParameters(AnnularCell& cell, std::string& filename){
 
     // Inverse number of neighbours
     zeta = 1.0d/cell.m_grid.m_neighbours.size();
-    
+
     /* Save local information */
     Qdat << i+1 << " " << cell.m_bundle[i].m_xPos << " " << cell.m_bundle[i].m_yPos << " " // Index  and Position (x,y)
          << cell.m_bundle[i].m_angle << " " << tilt << " "                // Orientation and local tilt
@@ -330,7 +332,20 @@ void getOrderParameters(AnnularCell& cell, std::string& filename){
          '\r' << '\n'; // New line
 
   }
-  
+
   // Close file stream
   Qdat.close();
+}
+
+
+std::vector<int> getAveragingIndexes(Grid& grid, Rod& rod)
+{
+  /**
+    'getAveragingIndexes': Obtain the indexes in a region centered at the
+                           position of Rod with index 'index'.
+  **/
+
+  grid.m_neighbours = grid.getNeighbours(grid.getGridCoords(rod));
+
+  return grid.m_neighbours;
 }

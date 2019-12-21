@@ -85,7 +85,7 @@ bool AnnularCell::rodIsTouchingInnerWall(const int& index)
   **/
 
   // If input 'index' is valid
-  if(index < m_NUMBER_OF_PARTICLES)
+  if(index < m_NUMBER_OF_RODS)
   {
     // Get Rod from 'index'
     return rodIsTouchingInnerWall(getRod(index));
@@ -182,7 +182,7 @@ bool AnnularCell::rodIsTouchingOuterWall(const int& index)
   static const double OUTER_MAX_DIST = m_OUTER_RADIUS - Rod::m_HALF_DIAGONAL;
 
   // If input 'index' is valid
-  if(index < m_NUMBER_OF_PARTICLES)
+  if(index < m_NUMBER_OF_RODS)
   {
     // Get 'm_aux_rod' from 'index'
     return rodIsTouchingOuterWall(getRod(index));
@@ -257,7 +257,7 @@ void AnnularCell::fillAnnularCell()
   bool rodsAreTouching;
 
   /* Try to fill 'AnnularCell' with 'm_NUMBER_OF_PARTICLES' 'Rod's */
-  for(int i=0; i < m_NUMBER_OF_PARTICLES; i++)
+  for(int i=0; i < m_NUMBER_OF_RODS; i++)
   {
     // Assume new 'Rod' will be touching some of the 'rod's already included
     rodsAreTouching = true;
@@ -431,7 +431,6 @@ void AnnularCell::fillAnnularCellFromFile(std::string filepath, const int& numRo
 
   // Open 'savedConfiguration'
   savedConfiguration.open(filepath);
-
   // For each 'Rod' of data
   for(int i=0; i < numRodsInFile; i++)
   {
@@ -444,7 +443,6 @@ void AnnularCell::fillAnnularCellFromFile(std::string filepath, const int& numRo
 
   // Close 'savedConfiguration'
   savedConfiguration.close();
-
   // If 'savedConfiguration' did not contain all the desired 'Rod's
   for(int i=numRodsInFile; i<NUMBER_OF_RODS; i++)
   {
