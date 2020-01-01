@@ -122,8 +122,15 @@ public:
     'fillAnnularCellFromFile': Fill the 'AnnularCell' from a file with full path 'filepath'
                                with 8 columns: index, X, Y, PHI, q1, q2, q3, q4
                                were q_ are order parameters of the liquid crystal.
-                               Note: only the 'X', 'Y' and 'Phi' are used, the res tis discarded.
+                               Note: only the 'X', 'Y' and 'Phi' are used, the rest is discarded.
                                Note: it is assumed that 'numRodsInFile' <= 'm_NUMBER_OF_RODS'
+  **/
+
+  void saveAnnularCellToFile(std::string filepath);
+  /**
+    'saveAnnularCellToFile': Save the 'AnnularCell' in CSV format in file 'filename'.
+                             with 8 columns: index, X, Y, PHI, q1, q2, q3, q4
+                             were q_ are order parameters of the liquid crystal.
   **/
 };
 

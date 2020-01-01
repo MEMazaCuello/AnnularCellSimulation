@@ -455,3 +455,29 @@ void AnnularCell::fillAnnularCellFromFile(std::string filepath, const int& numRo
   // Fill 'm_grid' with the indexes of the 'Rod's 'm_bundle' to know roughly were each rod is
   m_grid.fillGrid(m_bundle);
 }
+
+void AnnularCell::saveAnnularCellToFile(std::string filename)
+{
+  /**
+    'saveAnnularCellToFile': Save the 'AnnularCell' in CSV format in file 'filename'.
+                             with 8 columns: index, X, Y, PHI, q1, q2, q3, q4
+                             were q_ are order parameters of the liquid crystal.
+  **/
+
+  // Ouput stream
+  std::ofstream configuration;
+  configuration.open(filename);
+
+  // Headers row
+  configuration << "index" << "," << "x" << "," << "y" << "," << "angle" << '\r' << '\n';;
+
+  // Save 'Rod's information
+  for(int i=0; i < m_NUMBER_OF_PARTICLES; i++)
+  {
+    m_aux_rod = m_bundle[i];
+      configuration << i << "," << m_aux_rod.m_xPos << "," << m_aux_rod.m_yPos << "," << m_aux_rod.m_angle << '\r' << '\n';;
+  }
+
+  // Close output stream
+  configuration.close();
+}
