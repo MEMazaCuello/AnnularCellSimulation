@@ -1,57 +1,88 @@
-/****
-  'parameters.cpp':
-  --------------------
-  Sets global simulation parameters and lengths, called from other files.
-
-  --------------------
-  PRIMARY PARAMETERS define characteristic lengths of the rods,
-  'WIDTH' and 'LENGTH'; annular cell radii, 'OUTER_RADIUS' and
-  'INNER_RADIUS'; and 'NUMBER_OF_RODS' to be included in the cell.
-
-  Note: all lengths are defined with respect to the 'WIDTH'.
-
-  Note: the program expects LENGTH >= WIDTH
-                            INNER_RADIUS <= OUTER_RADIUS,
-        and it is assumed that the specified NUMBER_OF_RODS can indeed
-        fit inside the annular cell with given dimensions.
-
-  AUXILIARY PARAMETERS are computed from PRIMARY PARAMETERS values
-  and are used to optimise certain parts of the code, in particular
-  for the detection of overlapping of rods between themselfes and with boundaries.
-
-  Note: these parameters are derived from previous ones and they
-        do not require user input.
-
-  --------------------
-  Last modified: 2019-05-12
-  By: M. E. Maza Cuello
-****/
+/**
+  * "parameters.cpp":
+  * --------------------
+  * Sets global simulation parameters used by other files.
+  *
+  * --------------------
+  * Primary parameters:
+  * Set characteristic lengths of the rods and the annular cell radii,
+  * and the number of rods to be included in the cell.
+  * They also include parameters relating to the Montecarlo simulation and
+  * the analysis of clusters and defects within the cell.
+  * Note: all lengths are defined with respect to the "WIDTH" of the rods.
+  * Note: it is everywhere assumed that
+  *   a) WIDTH <= LENGTH,
+  *   b) INNER_RADIUS < OUTER_RADIUS,
+  *   c) the specified NUMBER_OF_RODS can indeed fit inside the annular cell
+  *      with given dimensions.
+  * It is recommended to work with packing fractions lesser than 0.75.
+  *
+  * Auxiliary parameters:
+  * Derived from primary parameters, used for optimization purposes.
+  * Note: these parameters do not require user input.
+  *
+  * --------------------
+  * Last modified: 2020-04-29
+  * By: M. E. Maza-Cuello
+  */
 
 #include <cmath>
 
-/** PRIMARY PARAMETERS **/
-// Rods
-extern const double WIDTH    = 1.0d;            // Set desired WIDTH of rods, used as unity of length
-extern const double LENGTH   = 4.0d*WIDTH;      // Set desired LENGTH of rods
-// Annular Cell
-extern const double OUTER_RADIUS = 75.0d*WIDTH; // Set desired OUTER_RADIUS of the annular cell
-extern const double INNER_RADIUS = 10.0d*WIDTH; // Set desired INNER_RADIUS of the annular cell
-// Number of Rods
-extern const int    NUMBER_OF_RODS = 3255;      // Set desired NUMBER_OF_RODS
-// Order parameters
-extern const double AVG_RADIUS = 4.0d*LENGTH;   // Set desired AVG_RADIUS of circular region around rod,
-                                                // used for computing the order parameters
+// Primary parameters _________________________________________________
 
-/** AUXILIARY PARAMETERS **/
-// Rods
+// Rod
+extern const double WIDTH  = 1.0d;
+extern const double LENGTH = 4.0d*WIDTH;
+
+// Annular Cell
+extern const double OUTER_RADIUS = 70.0d*WIDTH;
+extern const double INNER_RADIUS = 20.0d*WIDTH;
+extern const int    NUMBER_OF_RODS = 1000;
+
+// Montecarlo parameters
+
+extern const int    SEED = 925547311508;
+
+/**
+  * Set desired acceptance probability (in %) of a Montecarlo step.
+  * A Montecarlo step consists of trying to slightly move each rod once.
+  */
+extern const double ACCEPTANCE = 0.25d;
+
+// Order parameters
+
+/**
+  * Set desired AVG_RADIUS of circular region around rod to obtain
+  * local averages of order parameters.
+  */
+extern const double AVG_RADIUS = 4.0d*LENGTH;
+
+// Clusters
+
+/**
+  * Set minimum number of rods to be considered a cluster
+  */
+extern const int CLUSTER_MIN_SIZE = 2;
+
+// Defects
+
+/**
+  * Set minimum number of rods to be considered a defect
+  */
+extern const int DEFECT_MIN_SIZE = 5;
+
+// Auxiliary parameters _______________________________________________
+
+// Rod
 extern const double DIAGONAL = std::sqrt(WIDTH*WIDTH + LENGTH*LENGTH);
-extern const double ALPHA = std::atan2(WIDTH,LENGTH);  // Inner angle of the rectangles
 extern const double HALF_WIDTH    = 0.5d*WIDTH;
 extern const double HALF_LENGTH   = 0.5d*LENGTH;
 extern const double HALF_DIAGONAL = 0.5d*DIAGONAL;
-// Usefull angles (rads)
-extern const double HALF_PI    = std::asin(1.0d);
-extern const double PI         = std::acos(-1.0d);
-extern const double QUARTER_PI = 0.5d*HALF_PI;
-// Packing fraction for given parameters: area covered by rods over area of annular cell
+extern const double ALPHA = std::atan2(WIDTH,LENGTH);  // Inner angle of the rectangles
+
+// Angles
+extern const double HALF_PI = std::asin(1.0d);
+extern const double PI      = std::acos(-1.0d);
+
+// Annular Cell
 extern const double PACKING_FRACTION = NUMBER_OF_RODS*WIDTH*LENGTH/(PI*(OUTER_RADIUS*OUTER_RADIUS-INNER_RADIUS*INNER_RADIUS));
