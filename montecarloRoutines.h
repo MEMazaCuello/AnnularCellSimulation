@@ -1,62 +1,36 @@
-/****
-  'montecarloRoutines.h':
-  --------------------
-  Implementation of 'montecarloRoutines'.
-  For declaration details, see 'montecarloRoutines.cpp'.
-
-  Needs: 'AnnularCell.h'
-
-  --------------------
-  The 'montecarloRoutines' define how a Monte Carlo step
-  is done in the 'AnnularCell' representing the system.
-  It also include functions that compute and save the
-  local order parameters -- nematic, tetratic and smectic,
-  of the liquid crystal of 'Rod's inside the 'AnnularCell'.
-
-  --------------------
-  Last modified: 2019-06-02
-  By: M. E. Maza Cuello
-****/
+/**
+  * "montecarloRoutines.h":
+  * --------------------
+  * Declaration of Montecarlo methods.
+  * For implementation details, see "montecarloRoutines.cpp".
+  *
+  * Needs: "AnnularCell.h".
+  *
+  * --------------------
+  * Last modified: 2020-04-30
+  * By: M. E. Maza-Cuello
+  */
 
 #ifndef MONTECARLOROUTINES_H_INCLUDED
 #define MONTECARLOROUTINES_H_INCLUDED
 
 #include "AnnularCell.h"
 
-/* Methods */
+/**
+  * Performs single Montecarlo step (MCS) over the cell.
+  * A MCS tries to translate and rotate each single particle by
+  * a small amount. If no overlapping occurs, the new position and
+  * orientation are saved for this particle.
+  * The maximum amounts that a particle can translate or rotate are
+  * dynamically controlled so as to obtain (in average) the acceptance
+  * rate set in "parameters.cpp".
+  * Convergence of acceptance rate usually takes some tens of iterations.
+  */
 
+// Rods are tried in random order (random permutation of indexes)
 void stepMontecarlo(AnnularCell& cell);
-  /**
-    'stepMontecarlo': Perform a Monte Carlo step on the 'cell'.
-                      I. e. for each 'Rod' inside the 'cell', try
-                      to randomly make a (small) change in its
-                      position and orientation.
-                      The changes' amplitude is dynamically adjusted
-                      so that the acceptation probability is ~ 50 %.
-  **/
 
-void stepMontecarloNeighbourhood(AnnularCell& cell);
-  /**
-    'stepMontecarloNeighbourhood': Perform a Monte Carlo step on the 'cell'.
-                                   I. e. for each grid neighborhood inside the 'cell', try
-                                   to randomly make a (small) change in its
-                                   'Rod's' position and orientation.
-                                   The changes' amplitudes are dynamically adjusted
-                                   so that the acceptation probability is ~ 50 %.
-  **/
-
-void getOrderParameters(AnnularCell& cell, std::string& filename);
-  /**
-    'getOrderParameters': Compute the local nematic, tetratic and smectic
-                          order parameters of the liquid crystal of 'Rod's.
-                          Save the configuration and the order parameters
-                          in a .txt file called 'filename.txt'.
-  **/
-
-std::vector<int> getAveragingIndexes(Grid& grid, Rod& rod);
-  /**
-    'getAveragingIndexes': Obtain the indexes in a region centered at the
-                           position of Rod with index 'index'.
-  **/
+// Rods within a grid box are tried in order (random permutation of boxes)
+void stepMontecarloNeighborhood(AnnularCell& cell);
 
 #endif // MONTECARLOROUTINES_H_INCLUDED
