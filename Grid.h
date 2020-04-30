@@ -1,112 +1,80 @@
-/****
-  'Grid.h':
-  --------------------
-  Declaration of 'Grid' class.
-  For implementation details, see 'Grid.cpp'.
-  
-  Needs: 'Rods.h'
-  
-  --------------------
-  A 'Grid' is a 'm_map' of 'Rod's indexes, 
-  divided in square 'm_BOXES' with 
-    side length = 'm_BOX_LENGTH'.
-        
-  --------------------
-  Last modified: 2019-05-14 
-  By: M. E. Maza Cuello
-****/
+/**
+  * "Grid.h":
+  * --------------------
+  * Declaration of the Grid class.
+  * For implementation details, see "Grid.cpp".
+  *
+  * Needs: "Rod.h".
+  *
+  * --------------------
+  * A "Grid" is a division of the plane in a "m_map"
+  * consisting of a square lattice of
+  *   ("m_BOXES" x "m_BOXES")
+  * squares of side
+  *   "m_BOX_LENGTH".
+  * Each box contains the indexes of those rods
+  * whose centers are located within the box.
+  * The "m_map" is complemented with "neighboring boxes" maps
+  * both for the vertical and horizontal direction, used for
+  * retrieving the indexes on a given box and its adjacent boxes.
+  *
+  * --------------------
+  * Last modified: 2020-04-30
+  * By: M. E. Maza-Cuello
+  */
 
 #ifndef GRID_H_INCLUDED
 #define GRID_H_INCLUDED
 
-#include "Rod.h"
 #include <vector>
+#include <forward_list>
 
-/** 'Grid' DECLARATION **/
+#include "Rod.h"
+
 class Grid
 {
 public:
-  /* Static variables */
-  // Number of boxes
+
   static const int    m_BOXES;
-  // Length of boxes
   static const double m_BOX_LENGTH;
   static const double m_INV_BOX_LENGTH;
   static const double m_HALF_LENGTH;
-  
-  /* Public variables */
-  // Basic map 
-  std::vector< std::vector< std::vector<int> > > m_map;
-  // Coordinates of neightbouring boxes of each map box
-  std::vector< std::vector< std::vector<int> > > m_NB_XCOORD;
-  std::vector< std::vector< std::vector<int> > > m_NB_YCOORD;
-  // Vector of indexes saved at a box and in first neighbouring boxes
-  std::vector<int>    m_neighbours;
 
-  /* Constructors */
-  // Default
+  std::vector< std::vector< std::forward_list<int> > > m_map;
+
+  /**
+    * Coordinates in the map of neighboring boxes a given box.
+    */
+  std::vector< std::vector< std::forward_list<int> > > m_NB_XCOORD;
+  std::vector< std::vector< std::forward_list<int> > > m_NB_YCOORD;
+
+  /**
+    * Vector of all the indexes inside a box and its 8 neighboring boxes.
+    */
+  std::vector<int> m_neighbors;
+
   Grid();
 
-  /* Methods */
-  
+  void fill(std::vector<Rod>& bundle);
+
   int getGridX(const Rod& rod) const;
-  /**
-    'getGridX': Given a 'rod', compute horizontal coordinate in grid,
-                to be used as first index for 'm_map'. 
-  **/
-  
   int getGridY(const Rod& rod) const;
+
+  std::vector<int> getCoords(const Rod& rod) const;
+  std::vector<int> getBox(const int& coordx, const int& coordy);
+
   /**
-    'getGridY': Given a 'rod', compute vertical coordinate in grid,
-                to be used as second index for 'm_map'. 
-  **/
-  
-  std::vector<int> getGridCoords(const Rod& rod) const;
+    * Gets vector of all the indexes inside a box and its 8 neighboring boxes.
+    * Note: each rod is a neighbor of itself.
+    */
+  std::vector<int> getNeighbors(const int& coordx, const int& coordy);
+  std::vector<int> getNeighbors(const std::vector<int>& coords);
+
   /**
-    'getGridCoords': Given a 'rod', compute pair of coordinates in grid,
-                     to be used as indexes for 'm_map'. 
-  **/
-  
-  void fillGrid(std::vector<Rod>& bundle);
-  /** 
-    'fillGrid': Given a bundle of 'Rod's, compute coordinates in the grid of each 'Rod'
-                and save 'Rod's index on corresponding box on 'm_map'.
-  **/
-  
-  int  getNumberOfNeighbours(const int& coordx, const int& coordy) const;
-  /**
-    'getNumberOfNeighbours': Given the coordinates ('coordx', 'coordy') of a box in the grid,
-                             obtain number of indexes saved on 'm_map'['coordx']['coordy'] and in
-                             the (generally 8) first-neighbouring boxes around it.  
-  **/  
-  
-  std::vector<int> getNeighbours(const int& coordx, const int& coordy);
-  /**
-    'getNeighbours': Given the coordinates ('coordx', 'coordy') of a box in the grid,
-                     obtain indexes saved on 'm_map'['coordx']['coordy'] and in
-                     the (generally 8) first-neighbouring boxes around it.  
-  **/
-  
-  std::vector<int> getNeighbours(const std::vector<int>& coords);
-  /**
-    'getNeighbours': Given the pair of coordinates 'coords' of a box in the grid,
-                     obtain indexes saved on 'm_map'['coords[0]']['coords[1]'] and in
-                     the (generally 8) first-neighbouring boxes around it.  
-  **/
-  
+    * Update the box to which a given index belongs to.
+    */
   void moveIndex(const int& movingIdx, const int& oldx, const int& oldy, const int& newx, const int& newy);
-  /**
-    'moveIndex': Update the 'm_map' by moving the index 'movingIdx'
-                 from the box at ('oldx','oldy')
-                 to the box at ('newx','newy').  
-  **/
-  
   void moveIndex(const int& movingIdx, const std::vector<int>& oldCoords, const std::vector<int>& newCoords);
-  /**
-    'moveIndex': Update the 'm_map' by moving the index 'movingIdx'
-                 from the box at ('oldCoords[0]','oldCoords[1]')
-                 to the box at ('newCoords[0]','newCoords[1]').
-  **/
 };
 
 #endif // GRID_H_INCLUDED
