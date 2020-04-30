@@ -1,158 +1,167 @@
-/**** 
-  'Rod.cpp':
-  --------------------
-  Implementation of Rod struct.
-  For declaration details, see 'Rod.h'.
-  
-  Needs: 'parameters.cpp'
-  
-  --------------------
-  A 'Rod' is represented by a rectangle with
-    width  = 2*'HALF_WIDTH' and
-    length = 2*'HALF_LENGTH'
-  at the 2D cartesian position of its center
-    (m_xPos, m_yPos)
-  with orientation
-    m_angle
-  defined as the angle between the 'LENGTH'- and the OX-axis.
-  
-  Note: the file 'parameters.cpp' is needed to specify the parameters
-        'HALF_WIDTH', 'HALF_LENGTH', 'HALF_DIAGONAL',
-        'WIDTH', 'LENGTH', 'DIAGONAL', 
-        'ALPHA', 'HALF_PI' and 'PI'.
-        
-  --------------------
-  Last modified: 2019-05-12 
-  By: M. E. Maza Cuello
-****/
+/**
+  * "Rod.cpp":
+  * --------------------
+  * Implementation of the Rod structure.
+  * For declaration details, see "Rod.h".
+  *
+  * Needs: "parameters.cpp", "Rod.h".
+  *
+  * --------------------
+  * Last modified: 2020-04-29
+  * By: M. E. Maza-Cuello
+  */
 
 #include <cmath>
-#include <iostream>
+
 #include "Rod.h"
 
-/** PARAMETERS OBTAINED FROM 'parameters.cpp' **/
-// Lengths
+// Parameters defined in "parameters.cpp" _____________________________
 extern const double WIDTH;
 extern const double DIAGONAL;
 extern const double HALF_WIDTH;
 extern const double HALF_LENGTH;
 extern const double HALF_DIAGONAL;
-// Angles
-extern const double PI;
-extern const double HALF_PI;
 extern const double ALPHA;
+extern const double HALF_PI;
+extern const double PI;
 
-/** 'Rod' IMPLEMENTATION **/
-/* Static variables */
-// Length variables
+// Static variables ___________________________________________________
 const double Rod::m_HALF_WIDTH    = HALF_WIDTH;
 const double Rod::m_HALF_LENGTH   = HALF_LENGTH;
 const double Rod::m_HALF_DIAGONAL = HALF_DIAGONAL;
 
-/* Methods */
-
-bool Rod::isTouchingRod(const Rod& otherRod)
+// Methods ____________________________________________________________
+void Rod::confineAngle()
 {
-  /** 
-    'isTouchingRod': Return 'true' if rod is overlapping 'otherRod', 'false' if not.
-                     Assumes 'm_angle' of both rods to be in the interval [-HALF_PI, HALF_PI].
-  **/
-  
-  /* First criterion: rods too far/close to eachother to overlap */
-  // Relative cartesian position between this and 'refRod'
-  double xrel = m_xPos-otherRod.m_xPos;
-  double yrel = m_yPos-otherRod.m_yPos;
-  
-  // Cartesian distance between this and 'refRod' centers
-  double distance = std::sqrt(xrel*xrel + yrel*yrel);
-
-  // Check first criterion
-  if(distance < WIDTH)
+  while (m_angle > HALF_PI)
   {
-      return true;
-  } else if(distance > DIAGONAL)
-  {
-      return false;
+    m_angle -= PI;
   }
 
-  /* Second criterion: 'distance' less than minimum distance 'minDist', 
-                      obtained via an analytical expression which is function
-                      of relatives angles 'phi' and 'theta' (defined below)   */
-  
-  // Relative orientation between rods orientations: 'phi'
-  double phi = m_angle - otherRod.m_angle;
-  
-  // 'phi' in interval [-pi/2, pi/2]
-  if(phi > HALF_PI){ phi -= PI;}
-  else if(phi < -HALF_PI){ phi += PI;}
-  
-  // Relative angle between rod centers (with respect to otherRod orientation): 'theta'
-  double theta = std::atan2(yrel,xrel) - otherRod.m_angle;
-  
-  // 'theta' in interval [-pi, pi]
-  if(theta > PI){ theta -= 2.0*PI;}
-  else if(theta < -PI){ theta += 2.0*PI;}
-
-  // Rotate / reflect system to work in the first and second cartesian quadrants 
-  if(phi < 0.0d)
+  while (m_angle < -HALF_PI)
   {
-      phi = -phi;
-      if(theta < 0.0d)
-      {
-          theta = -theta;
-      }
-      else
-      {
-          theta = PI-theta;
-      }
+    m_angle += PI;
   }
-  else
+}
+
+void Rod::translate(const double& dx, const double& dy)
+{
+  m_xPos += dx;
+  m_yPos += dy;
+}
+
+void Rod::rotate(const double& angle)
+{
+  m_angle += angle;
+
+  confineAngle();
+}
+
+double Rod::sqDistanceTo(const double& x, const double& y)
+{
+  return (x-m_xPos)*(x-m_xPos)+(y-m_yPos)*(y-m_yPos);
+}
+
+double Rod::sqDistanceTo(const Rod& other)
+{
+  return (other.m_xPos-m_xPos)*(other.m_xPos-m_xPos)+(other.m_yPos-m_yPos)*(other.m_yPos-m_yPos);
+}
+
+bool Rod::isWithinRadius(const Rod& other, const double& radius)
+{
+  return ( radius*radius > sqDistanceTo(other) );
+}
+
+double Rod::thresholdDistance(const Rod& other)
+{
+  double xrel = m_xPos-other.m_xPos;
+  double yrel = m_yPos-other.m_yPos;
+
+  // Relative angle in interval [-pi/2,pi/2]
+  double phi = m_angle - other.m_angle;
+  if (phi > HALF_PI)
   {
-      if(theta < 0.0d)
-      {
-          theta = theta+PI;
-      }
+    phi -= PI;
+  }
+  else if (phi < -HALF_PI)
+  {
+    phi += PI;
   }
 
-  // Auxiliary angles: analytical frontiers for different cheking regions
+  // Relative center-to-center orientation in [-pi,pi]
+  double theta = std::atan2(yrel,xrel) - other.m_angle;
+  if (theta > PI)
+  {
+    theta -= 2.0*PI;
+  }
+  else if (theta < -PI)
+  {
+    theta += 2.0*PI;
+  }
+
+  // Symmetry rotation/reflexion to first or second quadrants
+  if (phi < 0.0d)
+  {
+    phi = -phi;
+    theta = (theta < 0.0d) ? -theta : PI - theta;
+  }
+  else if (theta < 0.0d)
+  {
+    theta = theta+PI;
+  }
+
+  // Analytical computation of threshold distance
   double THETA0  = 0.5*phi;
   double THETAm1 = THETA0-ALPHA;
   double THETA1  = THETA0+ALPHA;
   double THETA2  = THETA0+HALF_PI;
   double THETA3  = THETAm1+PI;
-  
-  // Common factor of 'minDist'
-  double minDist = DIAGONAL*std::cos(THETA0);
 
-  // Compute specific 'minDist' 
-  if(theta < THETAm1)
+  double thresholdDist = DIAGONAL*std::cos(THETA0);
+
+  if (theta < THETAm1)
   {
-      // First region: 'theta' in [-pi, phi/2-ALPHA]
-      minDist *= std::sin(THETA1)/std::sin(phi-theta);
-  }else if(theta < THETA0)
+    thresholdDist *= std::sin(THETA1)/std::sin(phi-theta);
+  }
+  else if (theta < THETA0)
   {
-      // Second region: 'theta' in [phi/2-ALPHA, phi/2]
-      minDist *= std::cos(THETAm1)/std::cos(theta);
-  }else if(theta < THETA1)
+    thresholdDist *= std::cos(THETAm1)/std::cos(theta);
+  }
+  else if (theta < THETA1)
   {
-      // Third region: 'theta' in [phi/2, phi/2+ALPHA]
-      minDist *= std::cos(THETAm1)/std::cos(theta-phi);
-  }else if(theta < THETA2)
+    thresholdDist *= std::cos(THETAm1)/std::cos(theta-phi);
+  }
+  else if (theta < THETA2)
   {
-      // Forth region: 'theta' in [phi/2+ALPHA, phi/2+HALF_PI]
-      minDist *= std::sin(THETA1)/std::sin(theta);
-  }else if(theta < THETA3)
+    thresholdDist *= std::sin(THETA1)/std::sin(theta);
+  }
+  else if (theta < THETA3)
   {
-      // Fifth region: 'theta' in [phi/2+HALF_PI, phi/2-ALPHA+PI]
-      minDist *= std::sin(THETA1)/std::sin(theta-phi);
-  }else
+    thresholdDist *= std::sin(THETA1)/std::sin(theta-phi);
+  }
+  else
   {
-      // Sixth region: 'theta' in [phi/2-ALPHA+PI, PI]
-      minDist *= std::cos(THETAm1)/(-std::cos(theta));
+    thresholdDist *= std::cos(THETAm1)/(-std::cos(theta));
   }
 
-  // Check second criterion
-  return (distance < minDist);
+  return thresholdDist;
 }
 
+bool Rod::isTouchingRod(const Rod& refRod)
+{
+  double sqDist = sqDistanceTo(refRod);
 
+  if (sqDist < WIDTH*WIDTH)
+  {
+      return true;
+  }
+  else if (sqDist > DIAGONAL*DIAGONAL)
+  {
+      return false;
+  }
+
+  // Analytically computed minimum distance between the two rods
+  double minDist = thresholdDistance(refRod);
+
+  return ( sqDist < minDist*minDist );
+}
