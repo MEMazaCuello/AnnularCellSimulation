@@ -2,6 +2,7 @@
 #include <iostream>
 #include "AnnularCell.h"
 #include "montecarloRoutines.h"
+#include "analysisRoutines.h"
 
 extern const double PACKING_FRACTION;
 
