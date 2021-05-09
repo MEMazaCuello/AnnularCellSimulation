@@ -22,7 +22,7 @@
   * Note: these parameters do not require user input.
   *
   * --------------------
-  * Last modified: 2020-04-29
+  * Last modified: 2021-05-09
   * By: M. E. Maza-Cuello
   */
 
@@ -37,11 +37,11 @@ extern const double LENGTH = 4.0d*WIDTH;
 // Annular Cell
 extern const double OUTER_RADIUS = 70.0d*WIDTH;
 extern const double INNER_RADIUS = 20.0d*WIDTH;
-extern const int    NUMBER_OF_RODS = 1000;
+extern const int    NUMBER_OF_RODS = 2651;
 
 // Montecarlo parameters
 
-extern const int    SEED = 925547311508;
+extern const int    SEED = 653248971;
 
 /**
   * Set desired acceptance probability (in %) of a Montecarlo step.
