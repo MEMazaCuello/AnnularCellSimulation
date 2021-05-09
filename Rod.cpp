@@ -7,7 +7,7 @@
   * Needs: "parameters.cpp", "Rod.h".
   *
   * --------------------
-  * Last modified: 2020-04-29
+  * Last modified: 2021-05-09
   * By: M. E. Maza-Cuello
   */
 
@@ -57,26 +57,25 @@ void Rod::rotate(const double& angle)
   confineAngle();
 }
 
-double Rod::sqDistanceTo(const double& x, const double& y)
+double Rod::sqDistanceTo(const double& x, const double& y) const
 {
   return (x-m_xPos)*(x-m_xPos)+(y-m_yPos)*(y-m_yPos);
 }
 
-double Rod::sqDistanceTo(const Rod& other)
+double Rod::sqDistanceTo(const Rod& other) const
 {
-  return (other.m_xPos-m_xPos)*(other.m_xPos-m_xPos)+(other.m_yPos-m_yPos)*(other.m_yPos-m_yPos);
+  return (other.m_xPos-m_xPos)*(other.m_xPos-m_xPos)+(other.m_yPos-m_yPos)*
+
+(other.m_yPos-m_yPos);
 }
 
-bool Rod::isWithinRadius(const Rod& other, const double& radius)
+bool Rod::isWithinRadius(const Rod& other, const double& radius) const
 {
-  return ( radius*radius > sqDistanceTo(other) );
+  return ( sqDistanceTo(other) < radius*radius );
 }
 
-double Rod::thresholdDistance(const Rod& other)
+double Rod::sqThresholdDistance(const Rod& other) const
 {
-  double xrel = m_xPos-other.m_xPos;
-  double yrel = m_yPos-other.m_yPos;
-
   // Relative angle in interval [-pi/2,pi/2]
   double phi = m_angle - other.m_angle;
   if (phi > HALF_PI)
@@ -89,7 +88,7 @@ double Rod::thresholdDistance(const Rod& other)
   }
 
   // Relative center-to-center orientation in [-pi,pi]
-  double theta = std::atan2(yrel,xrel) - other.m_angle;
+  double theta = std::atan2(m_yPos-other.m_yPos,m_xPos-other.m_xPos) - other.m_angle;
   if (theta > PI)
   {
     theta -= 2.0*PI;
@@ -144,24 +143,25 @@ double Rod::thresholdDistance(const Rod& other)
     thresholdDist *= std::cos(THETAm1)/(-std::cos(theta));
   }
 
-  return thresholdDist;
+  return (thresholdDist*thresholdDist);
 }
 
-bool Rod::isTouchingRod(const Rod& refRod)
+bool Rod::isTouchingRod(const Rod& other) const
 {
-  double sqDist = sqDistanceTo(refRod);
+  static const double SQ_WIDTH = WIDTH*WIDTH;
+  static const double SQ_DIAGONAL = DIAGONAL*DIAGONAL;
 
-  if (sqDist < WIDTH*WIDTH)
+  double sqDist = (other.m_xPos-m_xPos)*(other.m_xPos-m_xPos)+(other.m_yPos-m_yPos)*(other.m_yPos-m_yPos);
+
+  if (sqDist > SQ_DIAGONAL)
   {
-      return true;
+    return false;
   }
-  else if (sqDist > DIAGONAL*DIAGONAL)
+  else if (sqDist < SQ_WIDTH)
   {
-      return false;
+    return true;
   }
 
   // Analytically computed minimum distance between the two rods
-  double minDist = thresholdDistance(refRod);
-
-  return ( sqDist < minDist*minDist );
+  return (sqDist < sqThresholdDistance(other));
 }
