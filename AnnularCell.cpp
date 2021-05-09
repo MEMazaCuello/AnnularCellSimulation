@@ -1,5 +1,5 @@
 /**
-  * "AnnularCell.h":
+  * "AnnularCell.cpp":
   * --------------------
   * Implementation of the AnnularCell class.
   * For declaration details, see "AnnularCell.cpp".
@@ -7,7 +7,7 @@
   * Needs: "parameters.cpp", "AnnularCell.h".
   *
   * --------------------
-  * Last modified: 2020-04-30
+  * Last modified: 2021-05-09
   * By: M. E. Maza-Cuello
   */
 
@@ -40,22 +40,27 @@ Rod  AnnularCell::getRod(const int& index) const
   return m_bundle[index];
 }
 
-bool AnnularCell::rodIsOutsideWalls(const int& index)
+bool AnnularCell::rodIsOutsideWalls(const int& index) const
 {
   return rodIsOutsideWalls(getRod(index));
 }
 
-bool AnnularCell::rodIsOutsideWalls(const Rod& rod)
+bool AnnularCell::rodIsOutsideWalls(const Rod& rod) const
 {
   return (rodIsTouchingInnerWall(rod)|| rodIsTouchingOuterWall(rod));
 }
 
-bool AnnularCell::rodIsTouchingInnerWall(const int& index)
+bool AnnularCell::internalRodIsOutsideWalls() const
+{
+  return (internalRodIsTouchingInnerWall()|| internalRodIsTouchingOuterWall());
+}
+
+bool AnnularCell::rodIsTouchingInnerWall(const int& index) const
 {
   return rodIsTouchingInnerWall(getRod(index));
 }
 
-bool AnnularCell::rodIsTouchingInnerWall(const Rod& rod)
+bool AnnularCell::rodIsTouchingInnerWall(const Rod& rod) const
 {
   // Auxiliary parameters needed for analytical constraints
   static const double R_PLUS_HALF_L = INNER_RADIUS + Rod::m_HALF_LENGTH;
@@ -63,16 +68,78 @@ bool AnnularCell::rodIsTouchingInnerWall(const Rod& rod)
   static const double HALF_D_OVER_R = Rod::m_HALF_DIAGONAL/INNER_RADIUS;
   static const double PHI_ONE = std::atan2(Rod::m_HALF_WIDTH, R_PLUS_HALF_L);
   static const double PHI_TWO = std::atan2(R_PLUS_HALF_W, Rod::m_HALF_LENGTH);
-  static const double INNER_MIN_DIST = m_INNER_RADIUS + Rod::m_HALF_WIDTH;
-  static const double INNER_MAX_DIST = m_INNER_RADIUS + Rod::m_HALF_DIAGONAL;
+  static const double INNER_MIN_SQ_DIST = (m_INNER_RADIUS + Rod::m_HALF_WIDTH)*(m_INNER_RADIUS + Rod::m_HALF_WIDTH);
+  static const double INNER_MAX_SQ_DIST = (m_INNER_RADIUS + Rod::m_HALF_DIAGONAL)*(m_INNER_RADIUS + Rod::m_HALF_DIAGONAL);
 
-  double sqDist = m_aux_rod.sqDistanceTo(0.0d,0.0d);
+  double sqDist = rod.m_xPos*rod.m_xPos + rod.m_yPos*rod.m_yPos;
 
-  if (sqDist < INNER_MAX_DIST*INNER_MAX_DIST)
+  if (sqDist < INNER_MIN_SQ_DIST)
   {
     return true;
   }
-  else if (sqDist > INNER_MIN_DIST*INNER_MIN_DIST)
+  else if (sqDist > INNER_MAX_SQ_DIST)
+  {
+    return false;
+  }
+
+  // Relative angles
+  double theta = std::atan2(rod.m_yPos, rod.m_xPos);
+  double phi   = std::abs(rod.m_angle - theta);
+
+  // phi between 0 and PI/2
+  if (phi > PI)
+  {
+    phi -= PI;
+  }
+  if (phi > HALF_PI)
+  {
+    phi = PI - phi;
+  }
+
+  // Analytically computed minimum distance
+  if (phi < PHI_ONE)
+  {
+    double minDist = R_PLUS_HALF_L/std::cos(phi);
+    return (sqDist < minDist*minDist);
+  }
+  else if (phi > PHI_TWO)
+  {
+    double minDist = R_PLUS_HALF_W/std::sin(phi);
+    return (sqDist < minDist*minDist);
+  }
+  else
+  {
+    double minDist = phi-std::asin( HALF_D_OVER_R*std::sin(ALPHA-phi) );
+    if (phi < ALPHA)
+    {
+      minDist = (Rod::m_HALF_LENGTH+m_INNER_RADIUS*std::cos(minDist))/std::cos(phi);
+    }
+    else
+    {
+      minDist = (Rod::m_HALF_WIDTH+m_INNER_RADIUS*std::sin(minDist))/std::sin(phi);
+    }
+    return (sqDist < minDist*minDist);
+  }
+}
+
+bool AnnularCell::internalRodIsTouchingInnerWall() const
+{
+  // Auxiliary parameters needed for analytical constraints
+  static const double R_PLUS_HALF_L = INNER_RADIUS + Rod::m_HALF_LENGTH;
+  static const double R_PLUS_HALF_W = INNER_RADIUS + Rod::m_HALF_WIDTH;
+  static const double HALF_D_OVER_R = Rod::m_HALF_DIAGONAL/INNER_RADIUS;
+  static const double PHI_ONE = std::atan2(Rod::m_HALF_WIDTH, R_PLUS_HALF_L);
+  static const double PHI_TWO = std::atan2(R_PLUS_HALF_W, Rod::m_HALF_LENGTH);
+  static const double INNER_MIN_SQ_DIST = (m_INNER_RADIUS + Rod::m_HALF_WIDTH)*(m_INNER_RADIUS + Rod::m_HALF_WIDTH);
+  static const double INNER_MAX_SQ_DIST = (m_INNER_RADIUS + Rod::m_HALF_DIAGONAL)*(m_INNER_RADIUS + Rod::m_HALF_DIAGONAL);
+
+  double sqDist = m_aux_rod.m_xPos*m_aux_rod.m_xPos + m_aux_rod.m_yPos*m_aux_rod.m_yPos;
+
+  if (sqDist < INNER_MIN_SQ_DIST)
+  {
+    return true;
+  }
+  else if (sqDist > INNER_MAX_SQ_DIST)
   {
     return false;
   }
@@ -92,56 +159,93 @@ bool AnnularCell::rodIsTouchingInnerWall(const Rod& rod)
   }
 
   // Analytically computed minimum distance
-  double minDist;
   if (phi < PHI_ONE)
   {
-    minDist = R_PLUS_HALF_L/std::cos(phi);
+    double minDist = R_PLUS_HALF_L/std::cos(phi);
+    return (sqDist < minDist*minDist);
   }
   else if (phi > PHI_TWO)
   {
-    minDist = R_PLUS_HALF_W/std::sin(phi);
+    double minDist = R_PLUS_HALF_W/std::sin(phi);
+    return (sqDist < minDist*minDist);
   }
   else
   {
-    double lambda = std::asin( HALF_D_OVER_R*std::sin(ALPHA-phi) );
+    double minDist = phi-std::asin( HALF_D_OVER_R*std::sin(ALPHA-phi) );
     if (phi < ALPHA)
     {
-      minDist = (Rod::m_HALF_LENGTH+m_INNER_RADIUS*std::cos(phi-lambda))/std::cos(phi);
+      minDist = (Rod::m_HALF_LENGTH+m_INNER_RADIUS*std::cos(minDist))/std::cos(phi);
     }
     else
     {
-      minDist = (Rod::m_HALF_WIDTH+m_INNER_RADIUS*std::sin(phi-lambda))/std::sin(phi);
+      minDist = (Rod::m_HALF_WIDTH+m_INNER_RADIUS*std::sin(minDist))/std::sin(phi);
     }
+    return (sqDist < minDist*minDist);
   }
-
-  return (sqDist < minDist*minDist);
 }
 
-bool AnnularCell::rodIsTouchingOuterWall(const int& index)
+bool AnnularCell::rodIsTouchingOuterWall(const int& index) const
 {
   return rodIsTouchingOuterWall(getRod(index));
 }
 
-bool AnnularCell::rodIsTouchingOuterWall(const Rod& rod)
+bool AnnularCell::rodIsTouchingOuterWall(const Rod& rod) const
 {
-  static const double OUTER_MIN_DIST = m_OUTER_RADIUS - Rod::m_HALF_WIDTH;
-  static const double OUTER_MAX_DIST = m_OUTER_RADIUS - Rod::m_HALF_DIAGONAL;
+  static const double SQ_OUTER_RADIUS = OUTER_RADIUS*OUTER_RADIUS;
+  static const double SQ_HALF_DIAGONAL = Rod::m_HALF_DIAGONAL*Rod::m_HALF_DIAGONAL;
+  static const double OUTER_MIN_SQ_DIST = (m_OUTER_RADIUS - Rod::m_HALF_WIDTH)*(m_OUTER_RADIUS - Rod::m_HALF_WIDTH);
+  static const double OUTER_MAX_SQ_DIST = (m_OUTER_RADIUS - Rod::m_HALF_DIAGONAL)*(m_OUTER_RADIUS - Rod::m_HALF_DIAGONAL);
 
-  double sqDist = m_aux_rod.sqDistanceTo(0.0d,0.0d);
+  double sqDist = rod.m_xPos*rod.m_xPos + rod.m_yPos*rod.m_yPos;
 
-  if (sqDist > OUTER_MIN_DIST*OUTER_MIN_DIST)
+  if (sqDist > OUTER_MIN_SQ_DIST)
   {
     return true;
   }
-  else if (sqDist < OUTER_MAX_DIST*OUTER_MAX_DIST)
+  else if (sqDist < OUTER_MAX_SQ_DIST)
   {
     return false;
   }
 
   // Analytically computed minimum distance
-  double theta = std::atan2(m_aux_rod.m_yPos, m_aux_rod.m_xPos);
+  double phi = rod.m_angle - std::atan2(rod.m_yPos, rod.m_xPos);
 
-  double phi = m_aux_rod.m_angle - theta;
+  if (phi < -HALF_PI)
+  {
+    phi = phi + PI;
+  }
+  else if (phi > HALF_PI)
+  {
+    phi = phi - PI;
+  }
+
+  phi = std::cos( ALPHA - std::fabs(phi) );
+  phi = std::sqrt( SQ_OUTER_RADIUS-SQ_HALF_DIAGONAL*(1.0d-phi*phi) ) - Rod::m_HALF_DIAGONAL*phi;
+
+  return (sqDist > phi*phi);
+}
+
+bool AnnularCell::internalRodIsTouchingOuterWall() const
+{
+  static const double SQ_OUTER_RADIUS = OUTER_RADIUS*OUTER_RADIUS;
+  static const double SQ_HALF_DIAGONAL = Rod::m_HALF_DIAGONAL*Rod::m_HALF_DIAGONAL;
+  static const double OUTER_MIN_SQ_DIST = (m_OUTER_RADIUS - Rod::m_HALF_WIDTH)*(m_OUTER_RADIUS - Rod::m_HALF_WIDTH);
+  static const double OUTER_MAX_SQ_DIST = (m_OUTER_RADIUS - Rod::m_HALF_DIAGONAL)*(m_OUTER_RADIUS - Rod::m_HALF_DIAGONAL);
+
+  double sqDist = m_aux_rod.m_xPos*m_aux_rod.m_xPos + m_aux_rod.m_yPos*m_aux_rod.m_yPos;
+
+  if (sqDist > OUTER_MIN_SQ_DIST)
+  {
+    return true;
+  }
+  else if (sqDist < OUTER_MAX_SQ_DIST)
+  {
+    return false;
+  }
+
+  // Analytically computed minimum distance
+  double phi = m_aux_rod.m_angle - std::atan2(m_aux_rod.m_yPos, m_aux_rod.m_xPos);
+
   if (phi < -HALF_PI)
   {
     phi = phi + PI;
@@ -152,9 +256,43 @@ bool AnnularCell::rodIsTouchingOuterWall(const Rod& rod)
   }
 
   phi = std::cos(ALPHA-std::fabs(phi));
-  phi = std::sqrt(m_OUTER_RADIUS*m_OUTER_RADIUS-Rod::m_HALF_DIAGONAL*Rod::m_HALF_DIAGONAL*(1.0-phi*phi))-Rod::m_HALF_DIAGONAL*phi;
+  phi = std::sqrt(SQ_OUTER_RADIUS-SQ_HALF_DIAGONAL*(1.0d-phi*phi))-Rod::m_HALF_DIAGONAL*phi;
 
   return (sqDist > phi*phi);
+}
+
+bool AnnularCell::isInternalPositionValid(const int& index)
+{
+  if ( internalRodIsOutsideWalls() )
+  {
+    return false;
+  }
+
+  // New grid coordinates
+  int newi = m_grid.getGridIdx(m_aux_rod.m_xPos);
+  int newj = m_grid.getGridIdx(m_aux_rod.m_yPos);
+
+  // Fills m_grid.m_neighbors to contain new neighbors of index
+  m_grid.setNeighbors(newi,newj);
+
+  for (int& idx : m_grid.m_neighbors)
+  {
+    if (idx != index)  // Rod is neighbor of itself
+    {
+      if (m_aux_rod.isTouchingRod(m_bundle[idx]))
+      {
+        return false;
+      }
+    }
+  }
+
+  // Update grid coordinates of rod
+  m_grid.moveIndex(index,
+                   m_grid.getGridIdx(m_bundle[index].m_xPos), m_grid.getGridIdx(m_bundle[index].m_yPos),
+                   newi,newj);
+  m_bundle[index] = m_aux_rod;
+
+  return true;
 }
 
 void AnnularCell::fill()
@@ -257,7 +395,7 @@ void AnnularCell::fillMissingRods()
         }
         else
         {
-          m_grid.m_neighbors = m_grid.getNeighbors(m_grid.getCoords(m_aux_rod));
+          m_grid.setNeighbors(m_grid.getCoords(m_aux_rod));
 
           rodsAreTouching = false;
           for (int nb : m_grid.m_neighbors)
