@@ -13,7 +13,7 @@
   *   c) Defects of tetratic field.
   *
   * --------------------
-  * Last modified: 2020-04-30
+  * Last modified: 2021-05-09
   * By: M. E. Maza-Cuello
   */
 
@@ -63,17 +63,18 @@ std::vector<double> getQ4(AnnularCell& cell)
   double sum_cos4;
   double sum_sin4;
 
+  std::vector<int> indexes;
   std::vector<double> q4(cell.m_NUMBER_OF_PARTICLES);
 
   for (int i = 0; i < NUMBER_OF_RODS; i++)
   {
     // Neighboring indexes to perform local average
-    cell.m_grid.m_neighbors = getAveragingIndexes(cell, i);
+    indexes = getAveragingIndexes(cell, i);
 
     // Getting the local nematic eigen direction "tilt"
     sum_cos4 = 0.0d;
     sum_sin4 = 0.0d;
-    for (int index : cell.m_grid.m_neighbors)
+    for (int index : indexes)
     {
       zeta = 2.0d*cell.m_bundle[index].m_angle;
       sum_cos4 += std::cos(zeta);
@@ -84,14 +85,14 @@ std::vector<double> getQ4(AnnularCell& cell)
     // Compute local tetratic order parameter (q4) relative to "tilt"
     sum_cos4 = 0.0d;
     sum_sin4 = 0.0d;
-    for (int index : cell.m_grid.m_neighbors)
+    for (int index : indexes)
     {
       zeta = 4.0d*(cell.m_bundle[index].m_angle-tilt);
       sum_cos4 += std::cos(zeta);
       sum_sin4 += std::sin(zeta);
     }
 
-    q4[i] = std::sqrt(sum_cos4*sum_cos4 + sum_sin4*sum_sin4)/cell.m_grid.m_neighbors.size();
+    q4[i] = std::sqrt(sum_cos4*sum_cos4 + sum_sin4*sum_sin4)/indexes.size();
   }
 
   return q4;
@@ -129,15 +130,16 @@ void getOrderParameters(AnnularCell& cell, std::string& filename)
   double sum_cos4, sum_sin4;
   double sum_cosS, sum_sinS;
 
+  std::vector<int> indexes;
   for (int i = 0; i < NUMBER_OF_RODS; i++)
   {
     sum_cos2 = 0.0d;
     sum_sin2 = 0.0d;
 
-    cell.m_grid.m_neighbors = getAveragingIndexes(cell, i);
+    indexes = getAveragingIndexes(cell, i);
 
     // Getting the local nematic eigen direction "tilt"
-    for (int index : cell.m_grid.m_neighbors)
+    for (int index : indexes)
     {
       sum_cos2 += std::cos(2.0d*cell.m_bundle[index].m_angle);
       sum_sin2 += std::sin(2.0d*cell.m_bundle[index].m_angle);
@@ -149,7 +151,7 @@ void getOrderParameters(AnnularCell& cell, std::string& filename)
     sum_cos4 = 0.0d; sum_sin4 = 0.0d;
     sum_cosS = 0.0d; sum_sinS = 0.0d;
 
-    for (int index : cell.m_grid.m_neighbors)
+    for (int index : indexes)
     {
       // Local nematic order parameter q2
       zeta = 2.0d*(cell.m_bundle[index].m_angle-tilt);
@@ -167,7 +169,7 @@ void getOrderParameters(AnnularCell& cell, std::string& filename)
       sum_sinS += std::sin(zeta);
     }
 
-    zeta = 1.0d/cell.m_grid.m_neighbors.size();
+    zeta = 1.0d/indexes.size();
     Qdat << i+1 << " " << cell.m_bundle[i].m_xPos << " " << cell.m_bundle[i].m_yPos << " "
          << cell.m_bundle[i].m_angle << " " << tilt << " "                           // Save configuration (and tilt (eigen)angle)
          << std::sqrt(sum_cos2*sum_cos2 + sum_sin2*sum_sin2)*zeta << " "             // Nematic order parameter Q1
@@ -327,7 +329,7 @@ std::vector<Link> getClusterLinks(AnnularCell& cell)
   // Thus "links" is a partially ordered vector w.r.t. link.left.
   for (int i = 0; i < cell.m_NUMBER_OF_PARTICLES; i++)
   {
-    cell.m_grid.m_neighbors = cell.m_grid.getNeighbors(cell.m_grid.getCoords(cell.m_bundle[i]));
+    cell.m_grid.setNeighbors(cell.m_grid.getCoords(cell.m_bundle[i]));
     for (int index : cell.m_grid.m_neighbors)
     {
       if (i < index && areInSameCluster(cell.getRod(index), cell.getRod(i)))
