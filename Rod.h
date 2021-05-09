@@ -16,7 +16,7 @@
   * in radians, set in the interval [-pi/2,pi/2].
   *
   * --------------------
-  * Last modified: 2020-04-29
+  * Last modified: 2021-05-09
   * By: M. E. Maza-Cuello
   */
 
@@ -53,20 +53,20 @@ struct Rod
   /**
     * Returns squared euclidean distance to (x,y) or (other.m_xPos,other.m_yPos)
     */
-  double sqDistanceTo(const double& x, const double& y);
-  double sqDistanceTo(const Rod& other);
+  double sqDistanceTo(const double& x, const double& y) const;
+  double sqDistanceTo(const Rod& other) const;
 
-  bool isWithinRadius(const Rod& other, const double& radius);
+  bool isWithinRadius(const Rod& other, const double& radius) const;
 
   /**
-    * Returns analytical threshold distance between this and other rod.
+    * Returns analytical squared threshold distance between this and other rod.
     * The threshold distance is the minimum distance between the centers
     * of two rectangles of the same size, given their relative position
     * and angle, such that the rods do not overlap.
     */
-  double thresholdDistance(const Rod& other);
+  double sqThresholdDistance(const Rod& other) const;
 
-  bool isTouchingRod(const Rod& other);
+  bool isTouchingRod(const Rod& other) const;
 };
 
 #endif // ROD_H_INCLUDED
