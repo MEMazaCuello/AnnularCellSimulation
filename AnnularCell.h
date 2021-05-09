@@ -18,7 +18,7 @@
   * The rods on the "m_bundle" can be saved to a CSV file.
   *
   * --------------------
-  * Last modified: 2020-04-29
+  * Last modified: 2021-05-09
   * By: M. E. Maza-Cuello
   */
 
@@ -53,13 +53,24 @@ public:
 
   Rod  getRod(const int& index)   const;
 
-  bool rodIsOutsideWalls(const int& index);
-  bool rodIsOutsideWalls(const Rod& rod);
+  bool rodIsOutsideWalls(const int& index) const;
+  bool rodIsOutsideWalls(const Rod& rod) const;
+  bool internalRodIsOutsideWalls() const;
 
-  bool rodIsTouchingInnerWall(const int& index);
-  bool rodIsTouchingInnerWall(const Rod& rod);
-  bool rodIsTouchingOuterWall(const int& index);
-  bool rodIsTouchingOuterWall(const Rod& rod);
+  bool rodIsTouchingInnerWall(const int& index) const;
+  bool rodIsTouchingInnerWall(const Rod& rod) const;
+  bool internalRodIsTouchingInnerWall() const;
+
+  bool rodIsTouchingOuterWall(const int& index) const;
+  bool rodIsTouchingOuterWall(const Rod& rod) const;
+  bool internalRodIsTouchingOuterWall() const;
+
+  /**
+    * Checks whether the position of m_aux_rod is valid.
+    * If its valid, saves the rod at m_bundle[index].
+    * Returns a bool representing if it was saved or not.
+    */
+  bool isInternalPositionValid(const int& index);
 
   /**
     * Fill annular cell with Rods at random positions.
