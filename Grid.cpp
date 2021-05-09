@@ -7,7 +7,7 @@
   * Needs: "Grid.h".
   *
   * --------------------
-  * Last modified: 2020-04-29
+  * Last modified: 2021-05-09
   * By: M. E. Maza-Cuello
   */
 
@@ -83,17 +83,22 @@ Grid::Grid()
 
       // Bottom row
       m_NB_XCOORD[i][grid_boxes_minus_one] = {i-1,i,i+1};
-      m_NB_YCOORD[i][grid_boxes_minus_one] = {grid_boxes_minus_one-1,grid_boxes_minus_one};//{grid_boxes_minus_one-1,grid_boxes_minus_one,0};
+      m_NB_YCOORD[i][grid_boxes_minus_one] = {grid_boxes_minus_one-1,grid_boxes_minus_one};
     }
   }
 }
 
-inline int Grid::getGridX(const Rod& rod) const
+int Grid::getGridIdx(const double& val) const
+{
+  return int(std::floor((val+Grid::m_HALF_LENGTH)*Grid::m_INV_BOX_LENGTH));
+}
+
+int Grid::getGridX(const Rod& rod) const
 {
   return int(std::floor((rod.m_xPos+Grid::m_HALF_LENGTH)*Grid::m_INV_BOX_LENGTH));
 }
 
-inline int Grid::getGridY(const Rod& rod) const
+int Grid::getGridY(const Rod& rod) const
 {
   return int(std::floor((rod.m_yPos+Grid::m_HALF_LENGTH)*Grid::m_INV_BOX_LENGTH));
 }
@@ -115,22 +120,46 @@ void Grid::fill(std::vector<Rod>& bundle)
 
 std::vector<int> Grid::getBox(const int& coordx, const int& coordy)
 {
-  /// m_neighbors is modified!?
-  m_neighbors.clear();
+  std::vector<int> indexes;
 
   for (const int& idz : m_map[coordx][coordy])
   {
-    m_neighbors.push_back(idz);
+    indexes.push_back(idz);
   }
 
-  return m_neighbors;
+  return indexes;
 }
 
 std::vector<int> Grid::getNeighbors(const int& coordx, const int& coordy)
 {
   // Note: index of given rod IS included (is neighbor of itself)
 
-  /// m_neighbors is modified!?
+  std::vector<int> neighbors;
+
+  for (const int& idx : m_NB_XCOORD[coordx][coordy])
+  {
+    for (const int& idy : m_NB_YCOORD[coordx][coordy])
+    {
+      for (const int& idz : m_map[idx][idy])
+      {
+        neighbors.push_back(idz);
+      }
+    }
+  }
+
+  return neighbors;
+}
+
+std::vector<int> Grid::getNeighbors(const std::vector<int>& coords)
+{
+  return getNeighbors(coords[0],coords[1]);
+}
+
+void Grid::setNeighbors(const int& coordx, const int& coordy)
+{
+  // Note: m_neighbors is modified.
+  // Note: index of given rod IS included (is neighbor of itself)
+
   m_neighbors.clear();
 
   for (const int& idx : m_NB_XCOORD[coordx][coordy])
@@ -143,59 +172,23 @@ std::vector<int> Grid::getNeighbors(const int& coordx, const int& coordy)
       }
     }
   }
-
-  return m_neighbors;
 }
 
-std::vector<int> Grid::getNeighbors(const std::vector<int>& coords)
+void Grid::setNeighbors(const std::vector<int>& coords)
 {
-  // Note: index of given rod IS included (is neighbor of itself)
-
-  /// m_neighbors is modified!?
-  m_neighbors.clear();
-
-  for (const int& idx : m_NB_XCOORD[coords[0]][coords[1]])
-  {
-    for (const int& idy : m_NB_YCOORD[coords[0]][coords[1]])
-    {
-      for (const int& idz : m_map[idx][idy])
-      {
-        m_neighbors.push_back(idz);
-      }
-    }
-  }
-
-  return m_neighbors;
+  setNeighbors(coords[0],coords[1]);
 }
 
 void Grid::moveIndex(const int& movingIdx, const int& oldx, const int& oldy, const int& newx, const int& newy)
 {
   if (oldx != newx || oldy != newy)
   {
-    for (int& index : m_map[oldx][oldy]) // This can be improved using iterators
-    {
-      if (index == movingIdx)
-      {
-        m_map[oldx][oldy].remove(movingIdx);
-        m_map[newx][newy].emplace_front(movingIdx);
-        break;
-      }
-    }
+    m_map[oldx][oldy].remove(movingIdx);
+    m_map[newx][newy].emplace_front(movingIdx);
   }
 }
 
 void Grid::moveIndex(const int& movingIdx, const std::vector<int>& oldCoords, const std::vector<int>& newCoords)
 {
-  if (oldCoords[0] != newCoords[0] || oldCoords[1] != newCoords[1])
-  {
-    for (auto& index : m_map[oldCoords[0]][oldCoords[1]]) // This can be improved using iterators
-    {
-      if (index == movingIdx)
-      {
-        m_map[oldCoords[0]][oldCoords[1]].remove(movingIdx);
-        m_map[newCoords[0]][newCoords[1]].emplace_front(movingIdx);
-        break;
-      }
-    }
-  }
+  moveIndex(movingIdx,oldCoords[0],oldCoords[1],newCoords[0],newCoords[1]);
 }
