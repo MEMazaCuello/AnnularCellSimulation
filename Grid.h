@@ -19,7 +19,7 @@
   * retrieving the indexes on a given box and its adjacent boxes.
   *
   * --------------------
-  * Last modified: 2020-04-30
+  * Last modified: 2021-05-09
   * By: M. E. Maza-Cuello
   */
 
@@ -57,6 +57,7 @@ public:
 
   void fill(std::vector<Rod>& bundle);
 
+  int getGridIdx(const double& val) const;
   int getGridX(const Rod& rod) const;
   int getGridY(const Rod& rod) const;
 
@@ -69,6 +70,14 @@ public:
     */
   std::vector<int> getNeighbors(const int& coordx, const int& coordy);
   std::vector<int> getNeighbors(const std::vector<int>& coords);
+
+  /**
+    * Set m_neighbors to have all the indexes inside a box and its 8 neighboring boxes.
+    * Note: m_neighbors is modified.
+    * Note: each rod is a neighbor of itself.
+    */
+  void setNeighbors(const int& coordx, const int& coordy);
+  void setNeighbors(const std::vector<int>& coords);
 
   /**
     * Update the box to which a given index belongs to.
