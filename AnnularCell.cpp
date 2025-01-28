@@ -1,487 +1,318 @@
-/**
-  * "AnnularCell.cpp":
-  * --------------------
-  * Implementation of the AnnularCell class.
-  * For declaration details, see "AnnularCell.cpp".
-  *
-  * Needs: "parameters.cpp", "AnnularCell.h".
-  *
-  * --------------------
-  * Last modified: 2021-05-09
-  * By: M. E. Maza-Cuello
-  */
-
-#include <iostream>
-#include <fstream>
-#include <cmath>
+#include "annularCell.hpp" // includes <cmath> and <numbers>
 #include <random>
+#include <iostream>
+#include <iomanip>
+#include <fstream>
+#include <string>
+#include <sstream>
+#include <ranges>
+#include <algorithm>
 
-#include "AnnularCell.h"
+using std::numbers::pi;
 
-// Parameters defined in "parameters.cpp" _____________________________
-extern const double HALF_PI;
-extern const double PI;
-extern const double ALPHA;
-extern const double INNER_RADIUS;
-extern const double OUTER_RADIUS;
+std::random_device rd;
+std::mt19937 gen(rd());
+std::uniform_real_distribution<double> rand_dw(-GP::MC::dW, GP::MC::dW);
+std::uniform_real_distribution<double> rand_dl(-GP::MC::dL, GP::MC::dL);
+std::uniform_real_distribution<double> rand_da(-GP::MC::dA, GP::MC::dA);
 
-// Static variables ___________________________________________________
-const double AnnularCell::m_INNER_RADIUS = INNER_RADIUS;
-const double AnnularCell::m_OUTER_RADIUS = OUTER_RADIUS;
-
-// Methods ____________________________________________________________
-
-// Random number generator
-std::mt19937_64 gen(99994825);
-std::uniform_real_distribution<double> rndmdist(-1.0,1.0);
-
-Rod  AnnularCell::getRod(const int& index) const
+[[nodiscard]] auto AnnularCell::rodIsInsideOuterWall(const Rod& rod) const -> bool
 {
-  return m_bundle[index];
+    return std::ranges::all_of(rod.getCornersRadiiSq(), [](const double& r_sq) { return r_sq < GP::CELL::R_OUT_SQ; });
 }
 
-bool AnnularCell::rodIsOutsideWalls(const int& index) const
+[[nodiscard]] auto AnnularCell::rodIsOutsideInnerWall(const Rod& rod) const -> bool
 {
-  return rodIsOutsideWalls(getRod(index));
-}
+    const double sqDist = rod.x * rod.x + rod.y * rod.y;
 
-bool AnnularCell::rodIsOutsideWalls(const Rod& rod) const
-{
-  return (rodIsTouchingInnerWall(rod)|| rodIsTouchingOuterWall(rod));
-}
-
-bool AnnularCell::internalRodIsOutsideWalls() const
-{
-  return (internalRodIsTouchingInnerWall()|| internalRodIsTouchingOuterWall());
-}
-
-bool AnnularCell::rodIsTouchingInnerWall(const int& index) const
-{
-  return rodIsTouchingInnerWall(getRod(index));
-}
-
-bool AnnularCell::rodIsTouchingInnerWall(const Rod& rod) const
-{
-  // Auxiliary parameters needed for analytical constraints
-  static const double R_PLUS_HALF_L = INNER_RADIUS + Rod::m_HALF_LENGTH;
-  static const double R_PLUS_HALF_W = INNER_RADIUS + Rod::m_HALF_WIDTH;
-  static const double HALF_D_OVER_R = Rod::m_HALF_DIAGONAL/INNER_RADIUS;
-  static const double PHI_ONE = std::atan2(Rod::m_HALF_WIDTH, R_PLUS_HALF_L);
-  static const double PHI_TWO = std::atan2(R_PLUS_HALF_W, Rod::m_HALF_LENGTH);
-  static const double INNER_MIN_SQ_DIST = (m_INNER_RADIUS + Rod::m_HALF_WIDTH)*(m_INNER_RADIUS + Rod::m_HALF_WIDTH);
-  static const double INNER_MAX_SQ_DIST = (m_INNER_RADIUS + Rod::m_HALF_DIAGONAL)*(m_INNER_RADIUS + Rod::m_HALF_DIAGONAL);
-
-  double sqDist = rod.m_xPos*rod.m_xPos + rod.m_yPos*rod.m_yPos;
-
-  if (sqDist < INNER_MIN_SQ_DIST)
-  {
-    return true;
-  }
-  else if (sqDist > INNER_MAX_SQ_DIST)
-  {
-    return false;
-  }
-
-  // Relative angles
-  double theta = std::atan2(rod.m_yPos, rod.m_xPos);
-  double phi   = std::abs(rod.m_angle - theta);
-
-  // phi between 0 and PI/2
-  if (phi > PI)
-  {
-    phi -= PI;
-  }
-  if (phi > HALF_PI)
-  {
-    phi = PI - phi;
-  }
-
-  // Analytically computed minimum distance
-  if (phi < PHI_ONE)
-  {
-    double minDist = R_PLUS_HALF_L/std::cos(phi);
-    return (sqDist < minDist*minDist);
-  }
-  else if (phi > PHI_TWO)
-  {
-    double minDist = R_PLUS_HALF_W/std::sin(phi);
-    return (sqDist < minDist*minDist);
-  }
-  else
-  {
-    double minDist = phi-std::asin( HALF_D_OVER_R*std::sin(ALPHA-phi) );
-    if (phi < ALPHA)
+    if (sqDist > GP::CHECKS::MAX_IN_DIST_SQ) [[likely]]
     {
-      minDist = (Rod::m_HALF_LENGTH+m_INNER_RADIUS*std::cos(minDist))/std::cos(phi);
+        return true;
     }
-    else
+    else if (sqDist < GP::CHECKS::MIN_IN_DIST_SQ) [[unlikely]]
     {
-      minDist = (Rod::m_HALF_WIDTH+m_INNER_RADIUS*std::sin(minDist))/std::sin(phi);
-    }
-    return (sqDist < minDist*minDist);
-  }
-}
-
-bool AnnularCell::internalRodIsTouchingInnerWall() const
-{
-  // Auxiliary parameters needed for analytical constraints
-  static const double R_PLUS_HALF_L = INNER_RADIUS + Rod::m_HALF_LENGTH;
-  static const double R_PLUS_HALF_W = INNER_RADIUS + Rod::m_HALF_WIDTH;
-  static const double HALF_D_OVER_R = Rod::m_HALF_DIAGONAL/INNER_RADIUS;
-  static const double PHI_ONE = std::atan2(Rod::m_HALF_WIDTH, R_PLUS_HALF_L);
-  static const double PHI_TWO = std::atan2(R_PLUS_HALF_W, Rod::m_HALF_LENGTH);
-  static const double INNER_MIN_SQ_DIST = (m_INNER_RADIUS + Rod::m_HALF_WIDTH)*(m_INNER_RADIUS + Rod::m_HALF_WIDTH);
-  static const double INNER_MAX_SQ_DIST = (m_INNER_RADIUS + Rod::m_HALF_DIAGONAL)*(m_INNER_RADIUS + Rod::m_HALF_DIAGONAL);
-
-  double sqDist = m_aux_rod.m_xPos*m_aux_rod.m_xPos + m_aux_rod.m_yPos*m_aux_rod.m_yPos;
-
-  if (sqDist < INNER_MIN_SQ_DIST)
-  {
-    return true;
-  }
-  else if (sqDist > INNER_MAX_SQ_DIST)
-  {
-    return false;
-  }
-
-  // Relative angles
-  double theta = std::atan2(m_aux_rod.m_yPos, m_aux_rod.m_xPos);
-  double phi   = std::abs(m_aux_rod.m_angle - theta);
-
-  // phi between 0 and PI/2
-  if (phi > PI)
-  {
-    phi -= PI;
-  }
-  if (phi > HALF_PI)
-  {
-    phi = PI - phi;
-  }
-
-  // Analytically computed minimum distance
-  if (phi < PHI_ONE)
-  {
-    double minDist = R_PLUS_HALF_L/std::cos(phi);
-    return (sqDist < minDist*minDist);
-  }
-  else if (phi > PHI_TWO)
-  {
-    double minDist = R_PLUS_HALF_W/std::sin(phi);
-    return (sqDist < minDist*minDist);
-  }
-  else
-  {
-    double minDist = phi-std::asin( HALF_D_OVER_R*std::sin(ALPHA-phi) );
-    if (phi < ALPHA)
-    {
-      minDist = (Rod::m_HALF_LENGTH+m_INNER_RADIUS*std::cos(minDist))/std::cos(phi);
-    }
-    else
-    {
-      minDist = (Rod::m_HALF_WIDTH+m_INNER_RADIUS*std::sin(minDist))/std::sin(phi);
-    }
-    return (sqDist < minDist*minDist);
-  }
-}
-
-bool AnnularCell::rodIsTouchingOuterWall(const int& index) const
-{
-  return rodIsTouchingOuterWall(getRod(index));
-}
-
-bool AnnularCell::rodIsTouchingOuterWall(const Rod& rod) const
-{
-  static const double SQ_OUTER_RADIUS = OUTER_RADIUS*OUTER_RADIUS;
-  static const double SQ_HALF_DIAGONAL = Rod::m_HALF_DIAGONAL*Rod::m_HALF_DIAGONAL;
-  static const double OUTER_MIN_SQ_DIST = (m_OUTER_RADIUS - Rod::m_HALF_WIDTH)*(m_OUTER_RADIUS - Rod::m_HALF_WIDTH);
-  static const double OUTER_MAX_SQ_DIST = (m_OUTER_RADIUS - Rod::m_HALF_DIAGONAL)*(m_OUTER_RADIUS - Rod::m_HALF_DIAGONAL);
-
-  double sqDist = rod.m_xPos*rod.m_xPos + rod.m_yPos*rod.m_yPos;
-
-  if (sqDist > OUTER_MIN_SQ_DIST)
-  {
-    return true;
-  }
-  else if (sqDist < OUTER_MAX_SQ_DIST)
-  {
-    return false;
-  }
-
-  // Analytically computed minimum distance
-  double phi = rod.m_angle - std::atan2(rod.m_yPos, rod.m_xPos);
-
-  if (phi < -HALF_PI)
-  {
-    phi = phi + PI;
-  }
-  else if (phi > HALF_PI)
-  {
-    phi = phi - PI;
-  }
-
-  phi = std::cos( ALPHA - std::fabs(phi) );
-  phi = std::sqrt( SQ_OUTER_RADIUS-SQ_HALF_DIAGONAL*(1.0d-phi*phi) ) - Rod::m_HALF_DIAGONAL*phi;
-
-  return (sqDist > phi*phi);
-}
-
-bool AnnularCell::internalRodIsTouchingOuterWall() const
-{
-  static const double SQ_OUTER_RADIUS = OUTER_RADIUS*OUTER_RADIUS;
-  static const double SQ_HALF_DIAGONAL = Rod::m_HALF_DIAGONAL*Rod::m_HALF_DIAGONAL;
-  static const double OUTER_MIN_SQ_DIST = (m_OUTER_RADIUS - Rod::m_HALF_WIDTH)*(m_OUTER_RADIUS - Rod::m_HALF_WIDTH);
-  static const double OUTER_MAX_SQ_DIST = (m_OUTER_RADIUS - Rod::m_HALF_DIAGONAL)*(m_OUTER_RADIUS - Rod::m_HALF_DIAGONAL);
-
-  double sqDist = m_aux_rod.m_xPos*m_aux_rod.m_xPos + m_aux_rod.m_yPos*m_aux_rod.m_yPos;
-
-  if (sqDist > OUTER_MIN_SQ_DIST)
-  {
-    return true;
-  }
-  else if (sqDist < OUTER_MAX_SQ_DIST)
-  {
-    return false;
-  }
-
-  // Analytically computed minimum distance
-  double phi = m_aux_rod.m_angle - std::atan2(m_aux_rod.m_yPos, m_aux_rod.m_xPos);
-
-  if (phi < -HALF_PI)
-  {
-    phi = phi + PI;
-  }
-  else if (phi > HALF_PI)
-  {
-    phi = phi - PI;
-  }
-
-  phi = std::cos(ALPHA-std::fabs(phi));
-  phi = std::sqrt(SQ_OUTER_RADIUS-SQ_HALF_DIAGONAL*(1.0d-phi*phi))-Rod::m_HALF_DIAGONAL*phi;
-
-  return (sqDist > phi*phi);
-}
-
-bool AnnularCell::isInternalPositionValid(const int& index)
-{
-  if ( internalRodIsOutsideWalls() )
-  {
-    return false;
-  }
-
-  // New grid coordinates
-  int newi = m_grid.getGridIdx(m_aux_rod.m_xPos);
-  int newj = m_grid.getGridIdx(m_aux_rod.m_yPos);
-
-  // Fills m_grid.m_neighbors to contain new neighbors of index
-  m_grid.setNeighbors(newi,newj);
-
-  for (int& idx : m_grid.m_neighbors)
-  {
-    if (idx != index)  // Rod is neighbor of itself
-    {
-      if (m_aux_rod.isTouchingRod(m_bundle[idx]))
-      {
         return false;
-      }
     }
-  }
-
-  // Update grid coordinates of rod
-  m_grid.moveIndex(index,
-                   m_grid.getGridIdx(m_bundle[index].m_xPos), m_grid.getGridIdx(m_bundle[index].m_yPos),
-                   newi,newj);
-  m_bundle[index] = m_aux_rod;
-
-  return true;
-}
-
-void AnnularCell::fill()
-{
-  bool rodsAreTouching;
-  for (int i = 0; i < m_NUMBER_OF_PARTICLES; i++)
-  {
-    rodsAreTouching = true;
-    for (int trials = 0; trials < 1000; trials++) // 1000 trials per index
+    else if (std::ranges::any_of(rod.getCornersRadiiSq(), [](const double& r_sq) { return r_sq < GP::CELL::R_IN_SQ; })) [[unlikely]]
     {
-      // Random position over square of size OUTER_RADIUS
-      m_aux_rod.m_xPos  = rndmdist(gen)*m_OUTER_RADIUS;
-      m_aux_rod.m_yPos  = rndmdist(gen)*m_OUTER_RADIUS;
-      m_aux_rod.m_angle = rndmdist(gen)*HALF_PI;
-
-      // Check it is inside the cell
-      if ( rodIsTouchingInnerWall(m_aux_rod) || rodIsTouchingOuterWall(m_aux_rod) )
-      {
-        continue;
-      }
-
-      // Check overlapping
-      rodsAreTouching = false;
-      for (int j = 0; j < i; j++)
-      {
-        rodsAreTouching = m_aux_rod.isTouchingRod(getRod(j));
-        if (rodsAreTouching)
+        return false;
+    }
+    else [[unlikely]]
+    {
+        // Relative angle, between 0 and PI/2
+        // FASTER THAN: phi = std::abs(std::remainder(rod.a - std::atan2(rod.y, rod.x), pi));
+        double phi = std::abs(rod.a - std::atan2(rod.y, rod.x));
+        if (phi > pi)
         {
-          break;
+            phi -= pi;
         }
-      }
-
-      // Save rod
-      if (!rodsAreTouching)
-      {
-        m_bundle.emplace_back(m_aux_rod);
-        break;
-      }
-    }
-
-    // Create vector or the indexes that could not be inserted
-    if (rodsAreTouching)
-    {
-      m_missingRods.push_back(i);
-      std::cout << "Rod #" << i << " not included" << std::endl;
-      m_bundle.emplace_back(m_OUTER_RADIUS,m_OUTER_RADIUS,-ALPHA);
-    }
-  }
-
-  // Fill grid
-  m_grid.fill(m_bundle);
-
-  std::cout << std::endl << "\t CELL FILLED" << std::endl;
-}
-
-void AnnularCell::fillMissingRods()
-{
-  bool rodsAreTouching;
-  std::vector<int> newMissing;
-
-  double c;
-  double s;
-
-  // Number of particles that were entered in the cell
-  int insideParticles = m_NUMBER_OF_PARTICLES - m_missingRods.size();
-
-  for (int i : m_missingRods)
-  {
-    rodsAreTouching = true;
-    for (int p = 0; p < insideParticles; p++)
-    {
-      c = std::cos(m_bundle[p].m_angle);
-      s = std::sin(m_bundle[p].m_angle);
-
-      for (int q = 0; q < 4; q++)
-      {
-        m_aux_rod = m_bundle[p];
-
-        // Try copy of rod displaced in four Cartesian directions
-        switch (q)
+        if (phi > 0.5 * pi)
         {
-          case 0:
-            m_aux_rod.m_xPos += 2.0*Rod::m_HALF_LENGTH*c + 0.0001d;
-            m_aux_rod.m_yPos += 2.0*Rod::m_HALF_LENGTH*s + 0.0001d;
-          case 1:
-            m_aux_rod.m_xPos -= 2.0*Rod::m_HALF_LENGTH*c + 0.0001d;
-            m_aux_rod.m_yPos -= 2.0*Rod::m_HALF_LENGTH*s + 0.0001d;
-          case 2:
-            m_aux_rod.m_xPos -= 2.0*Rod::m_HALF_WIDTH*c + 0.0001d;
-            m_aux_rod.m_yPos += 2.0*Rod::m_HALF_WIDTH*s + 0.0001d;
-          case 3:
-            m_aux_rod.m_xPos -= 2.0*Rod::m_HALF_WIDTH*c + 0.0001d;
-            m_aux_rod.m_yPos += 2.0*Rod::m_HALF_WIDTH*s + 0.0001d;
+            phi = pi - phi;
         }
 
-        // Check if position is valid
-        if (rodIsTouchingInnerWall(m_aux_rod)||rodIsTouchingOuterWall(m_aux_rod))
+        // Analytically computed minimum permisible distance
+        if (phi < GP::CHECKS::MIN_AUX_ANGLE)
         {
-          continue;
+            const double minDist = GP::CHECKS::R_IN_PLUS_HALF_L / std::cos(phi);
+            return (sqDist > minDist * minDist);
+        }
+        else if (phi > GP::CHECKS::MAX_AUX_ANGLE)
+        {
+            const double minDist = GP::CHECKS::R_IN_PLUS_HALF_W / std::sin(phi);
+            return (sqDist > minDist * minDist);
+        }
+        else if(phi < GP::ROD::ALPHA)
+        {
+            double minDist = phi - std::asin(GP::CHECKS::HALF_D_OVER_R_IN * std::sin(GP::ROD::ALPHA - phi));
+            minDist = (GP::ROD::HALF_L + GP::CELL::R_IN * std::cos(minDist)) / std::cos(phi);
+            return (sqDist > minDist * minDist);
         }
         else
         {
-          m_grid.setNeighbors(m_grid.getCoords(m_aux_rod));
-
-          rodsAreTouching = false;
-          for (int nb : m_grid.m_neighbors)
-          {
-            rodsAreTouching = m_aux_rod.isTouchingRod(getRod(nb));
-            if (rodsAreTouching)
-            {
-              break;
-            }
-          }
+            double minDist = phi - std::asin(GP::CHECKS::HALF_D_OVER_R_IN * std::sin(GP::ROD::ALPHA - phi));
+            minDist = (GP::ROD::HALF_W + GP::CELL::R_IN * std::sin(minDist)) / std::sin(phi);
+            return (sqDist > minDist * minDist);
         }
-
-        // Save rod
-        if (!rodsAreTouching)
-        {
-          // Update grid: rod has moved to another box of the grid
-          m_grid.moveIndex(insideParticles,m_grid.getCoords(m_bundle[insideParticles]),m_grid.getCoords(m_aux_rod));
-          // One more particle inside that needs to be checked for overlapping
-          m_bundle[insideParticles] = m_aux_rod;
-          insideParticles++;
-          break;
-        }
-      }
-
-      if (!rodsAreTouching)
-      {
-        break;
-      }
     }
+}
 
-    // Those particles missing are saved again (for eventual recursion)
-    if (rodsAreTouching)
+[[nodiscard]] inline auto AnnularCell::rodIsWithinWalls(const Rod& rod) const -> bool
+{
+    return rodIsOutsideInnerWall(rod) && rodIsInsideOuterWall(rod);
+}
+
+auto AnnularCell::isOverlapingNeighbor(const Rod& rod) const -> bool
+{
+    const auto isOverlaping = [&](const Rod& rod) { return [&](int n) { return (n != rod.index) && rod.overlaps(m_bundle[n]); }; };
+    for (const int& neighborBoxIndex : m_grid.m_neighborBoxesIndexes[m_grid.getBoxIndexAt(rod.x, rod.y)])
     {
-      newMissing.push_back(i);
+        if (std::ranges::any_of(m_grid.m_boxes[neighborBoxIndex], isOverlaping(rod)))
+        {
+            return true;
+        }
     }
-  }
-
-  m_missingRods.clear();
-  m_missingRods = newMissing;
-  std::cout << m_missingRods.size() << " rods missing" << std::endl;
+    return false;
 }
 
-void AnnularCell::fillFromFile(std::string filepath, const int& numRodsInFile)
+[[nodiscard]] inline auto AnnularCell::positionIsValid(const Rod& rod) const -> bool
 {
-  // Empty cell
-  m_bundle.clear();
-  m_missingRods.clear();
-
-  // Fill cell
-  std::ifstream savedconfiguration;
-  savedconfiguration.open(filepath);
-
-  // Assumes numRodsInFile <= NUMBER_OF_RODS
-  m_bundle.reserve(NUMBER_OF_RODS);
-
-  double dummy;
-  for (int i = 0; i < numRodsInFile; i++)
-  {
-    savedconfiguration >> dummy >> m_aux_rod.m_xPos >> m_aux_rod.m_yPos >> m_aux_rod.m_angle
-                       >> dummy >> dummy >> dummy >> dummy;
-
-    m_bundle.emplace_back(m_aux_rod);
-  }
-  savedconfiguration.close();
-
-  // Missing particles (if numRodsInFile < NUMBER_OF_RODS)
-  for (int i = numRodsInFile; i < NUMBER_OF_RODS; i++)
-  {
-    m_missingRods.push_back(i);
-    m_bundle.emplace_back(m_OUTER_RADIUS,m_OUTER_RADIUS,-ALPHA);
-  }
-
-  // Fill grid
-  m_grid.fill(m_bundle);
+    return rodIsWithinWalls(rod) && !isOverlapingNeighbor(rod);
 }
 
-void AnnularCell::saveToCSV(std::string filename)
+auto AnnularCell::tryToMoveRod(Rod& rod, [[maybe_unused]] int& count) -> void
 {
-  std::ofstream configurationToSave;
-  configurationToSave.open(filename);
-  configurationToSave << "index" << "," << "x" << "," << "y" << "," << "angle" << std::endl;
-  for (int i = 0; i < m_NUMBER_OF_PARTICLES; i++)
-  {
-    m_aux_rod = m_bundle[i];
-    configurationToSave << i << "," << m_aux_rod.m_xPos << "," << m_aux_rod.m_yPos << ","
-                        << m_aux_rod.m_angle << std::endl;
-  }
-  configurationToSave.close();
+    const double dx = rand_dl(gen);
+    const double dy = rand_dw(gen);
+
+    Rod newRod(rod);
+    newRod.moveBy(dx * std::cos(newRod.a) - dy * std::sin(newRod.a),
+                  dx * std::sin(newRod.a) + dy * std::cos(newRod.a),
+                  rand_da(gen));
+
+    if (positionIsValid(newRod))
+    {
+        m_grid.moveIndex(rod.index, rod.x, rod.y, newRod.x, newRod.y);
+        rod = newRod;
+        ++count;
+    }
+}
+
+auto AnnularCell::tryToBringRodTowardsCenter(Rod& rod, const double& dr) -> void
+{
+    const double theta = std::atan2(rod.y, rod.x);
+    
+    Rod newRod = rod;
+    newRod.moveBy(-dr * std::cos(theta), -dr * std::sin(theta), 0.0);
+
+    if (positionIsValid(newRod))
+    {
+        m_grid.moveIndex(rod.index, rod.x, rod.y, newRod.x, newRod.y);
+        rod = newRod;
+    }
+}
+
+[[nodiscard]] auto AnnularCell::getRod(const int idx) const -> const Rod&
+{
+    return m_bundle[idx];
+}
+
+[[nodiscard]] auto AnnularCell::getRods() const -> const std::array<Rod, GP::NUM_RODS>&
+{
+    return m_bundle;
+}
+
+[[maybe_unused]] auto AnnularCell::MCStep() -> double
+{
+    int successes{ 0 };
+    std::ranges::for_each(m_bundle, [&](Rod& rod){ tryToMoveRod(rod, successes); });
+    return (100.0 * successes) / GP::NUM_RODS;
+}
+
+[[maybe_unused]] auto AnnularCell::thermalize() -> double
+{
+    double mean_acceptance{ 0.0 };
+    for (int s = 0; s < GP::MC::THERMAL_STEPS; s++)
+    {
+        mean_acceptance += MCStep();
+    }
+    return mean_acceptance / GP::MC::THERMAL_STEPS;
+}
+
+[[maybe_unused]] auto AnnularCell::MCSimulation() -> double
+{
+    double mean_acceptance{ 0.0 };
+    for (int s = 0; s < GP::MC::MC_STEPS; s++)
+    {
+        mean_acceptance += MCStep();
+    }
+    return mean_acceptance / GP::MC::MC_STEPS;
+}
+
+[[maybe_unused]] auto AnnularCell::fillFromFile(const std::filesystem::path& filename) -> bool
+{
+    std::ifstream infile(filename);
+    if (infile.is_open())
+    {
+        char c; // Only for commas
+        int i = 0;
+        for (std::string line; std::getline(infile, line) && i < GP::NUM_RODS; ++i)
+        {
+            std::istringstream ss(line);
+            ss >> m_bundle[i].x >> c >> m_bundle[i].y >> c >> m_bundle[i].a;
+            m_bundle[i].index = i;
+            m_grid.addIndexAt(i, m_bundle[i].x, m_bundle[i].y);
+        }
+        infile.close();
+        return true;
+    }
+    else
+    {
+        std::cout << "FILE " << filename <<" COULD NOT BE OPENED!\n";
+        return false;
+    }
+}
+
+[[maybe_unused]] auto AnnularCell::fill() -> bool
+{
+    int current_index = 0;
+    Rod rod{};
+    { // Fill in rings, angle is "tangent" to outer wall
+        double r_max = GP::CHECKS::R_OUT_MAX;
+        double offset = 0.0;
+        while (r_max > GP::CHECKS::R_OUT_MIN && current_index < GP::NUM_RODS)
+        {
+            const double beta = 2.0 * std::atan(GP::ROD::HALF_L / (r_max - GP::ROD::HALF_W));
+            const double spaces = std::floor((2.0 * pi) / beta);
+            const double buffer = (2.0 * pi - spaces * beta) / spaces;
+            double theta = 0.0;
+            do 
+            {
+                rod.x = r_max * std::cos(theta + offset);
+                rod.y = r_max * std::sin(theta + offset);
+                rod.a = remainder(theta + offset - 0.5 * pi, pi);
+                rod.index = current_index;
+
+                if (positionIsValid(rod))
+                {
+                    m_bundle[current_index] = rod;
+                    m_grid.addIndexAt(current_index, rod.x, rod.y);
+                    ++current_index;
+                }
+
+                theta += beta + buffer;
+            } while (theta < 2 * pi && current_index < GP::NUM_RODS);
+            offset += 0.5 * beta;
+            r_max -= GP::ROD::HALF_W;
+            r_max = 0.9993 * std::sqrt(r_max * r_max + GP::ROD::HALF_D * GP::ROD::HALF_D + r_max * GP::ROD::D * std::cos(0.5 * beta + std::asin(2.0 * r_max * std::sin(0.5 * beta) / GP::ROD::D)));
+        }
+    }
+    
+    if (current_index == GP::NUM_RODS)
+    {
+        std::cout << "Ring filling ended succesfully.\n";
+
+        // Try to attract rods towards the center, so that the ones in the outer rim
+        // have the possibility to move a bit
+        for (int n = 0; n < 20; ++n)
+        {
+            std::ranges::for_each(m_bundle | std::views::reverse, [&](Rod& rod) { tryToBringRodTowardsCenter(rod, (GP::ROD::W / (n + 1))); });
+        }
+
+        if (save("default_Initial_Configuration.csv", GP::NUM_RODS))
+        {
+            std::cout << "Configuration saved as 'default_Initial_Configuration.csv'.\n";
+            return true;
+        }
+        else
+        {
+            std::cout << "WARNING: COULD NOT SAVE CONFIGURATION!\n";
+            return false;
+        }
+    }
+    else
+    {
+        std::cout << "Ring filling ended. " << GP::NUM_RODS - current_index << " rods missing.\n";
+        if (save("default_initial_Configuration_INCOMPLETE.csv", current_index))
+        {
+            std::cout << "Current configuration saved as 'default_initial_Configuration_INCOMPLETE.csv'.\n";
+        }
+        else
+        {
+            std::cout << "WARNING: COULD NOT SAVE CONFIGURATION!\n";
+        }
+        
+        std::cout << "Current cover fraction: " << current_index * GP::ROD::W * GP::ROD::L / (pi * (GP::CELL::R_OUT_SQ - GP::CELL::R_IN_SQ)) << '\n';
+        std::cout << "Target cover fraction: " << GP::NUM_RODS * GP::ROD::W * GP::ROD::L / (pi * (GP::CELL::R_OUT_SQ - GP::CELL::R_IN_SQ)) << '\n';
+        std::cout << "Starting addition in random locations. This process is not guaranteed to finish.\n";
+        
+        std::uniform_real_distribution<double> distR(-GP::CELL::R_OUT, GP::CELL::R_OUT);
+        current_index -= 1;
+        for (; current_index < GP::NUM_RODS; ++current_index)
+        {
+            m_bundle[current_index].index = current_index;
+            do 
+            {
+                const double x = distR(gen);
+                const double y = distR(gen);
+                m_bundle[current_index].moveBy(x, y, std::atan2(y, x));
+            } while (!positionIsValid(m_bundle[current_index]));
+
+            m_grid.addIndexAt(current_index, m_bundle[current_index].x, m_bundle[current_index].y);
+            std::cout << "Rod #" << current_index << " has been inserted." << std::endl;
+            ++current_index;
+        }
+        std::cout << "Random addition finished.\n";
+        if (save("default_initial_Configuration.csv", GP::NUM_RODS))
+        {
+            std::cout << "Configuration saved as 'default_initial_Configuration.csv'. \n";
+            return true;
+        }
+        else
+        {
+            std::cout << "WARNING: COULD NOT SAVE CONFIGURATION!\n";
+            return false;
+        }
+    }
+}
+
+[[maybe_unused]] auto AnnularCell::save(const std::filesystem::path& filename, const int n) const -> bool
+{
+    std::ofstream of(filename);
+
+    if (of.is_open())
+    {
+        auto print = [&](const Rod& rod) {of << rod.x << "," << rod.y << "," << rod.a << '\n';};
+        
+        of << std::scientific << std::setprecision(15);
+        std::ranges::for_each(m_bundle | std::views::take(n), print);
+        of.close();
+
+        return true;
+    }
+    else
+    {
+        std::cout << "FILE " << filename << " COULD NOT BE OPENED!\n";
+        return false;
+    }
 }
