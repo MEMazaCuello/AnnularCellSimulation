@@ -16,70 +16,41 @@ std::uniform_real_distribution<double> rand_dw(-GP::MC::dW, GP::MC::dW);
 std::uniform_real_distribution<double> rand_dl(-GP::MC::dL, GP::MC::dL);
 std::uniform_real_distribution<double> rand_da(-GP::MC::dA, GP::MC::dA);
 
-[[nodiscard]] auto AnnularCell::rodIsInsideOuterWall(const Rod& rod) const -> bool
+struct Vec2
 {
-    return std::ranges::all_of(rod.getCornersRadiiSq(), [](const double& r_sq) { return r_sq < GP::CELL::R_OUT_SQ; });
-}
+    double x;
+    double y;
+};
 
-[[nodiscard]] auto AnnularCell::rodIsOutsideInnerWall(const Rod& rod) const -> bool
+inline static auto coordinatesSFD(const Vec2& v, const Vec2& n) -> Vec2
 {
-    const double sqDist = rod.x * rod.x + rod.y * rod.y;
-
-    if (sqDist > GP::CHECKS::MAX_IN_DIST_SQ) [[likely]]
-    {
-        return true;
-    }
-    else if (sqDist < GP::CHECKS::MIN_IN_DIST_SQ) [[unlikely]]
-    {
-        return false;
-    }
-    else if (std::ranges::any_of(rod.getCornersRadiiSq(), [](const double& r_sq) { return r_sq < GP::CELL::R_IN_SQ; })) [[unlikely]]
-    {
-        return false;
-    }
-    else [[unlikely]]
-    {
-        // Relative angle, between 0 and PI/2
-        // FASTER THAN: phi = std::abs(std::remainder(rod.a - std::atan2(rod.y, rod.x), pi));
-        double phi = std::abs(rod.a - std::atan2(rod.y, rod.x));
-        if (phi > pi)
-        {
-            phi -= pi;
-        }
-        if (phi > 0.5 * pi)
-        {
-            phi = pi - phi;
-        }
-
-        // Analytically computed minimum permisible distance
-        if (phi < GP::CHECKS::MIN_AUX_ANGLE)
-        {
-            const double minDist = GP::CHECKS::R_IN_PLUS_HALF_L / std::cos(phi);
-            return (sqDist > minDist * minDist);
-        }
-        else if (phi > GP::CHECKS::MAX_AUX_ANGLE)
-        {
-            const double minDist = GP::CHECKS::R_IN_PLUS_HALF_W / std::sin(phi);
-            return (sqDist > minDist * minDist);
-        }
-        else if(phi < GP::ROD::ALPHA)
-        {
-            double minDist = phi - std::asin(GP::CHECKS::HALF_D_OVER_R_IN * std::sin(GP::ROD::ALPHA - phi));
-            minDist = (GP::ROD::HALF_L + GP::CELL::R_IN * std::cos(minDist)) / std::cos(phi);
-            return (sqDist > minDist * minDist);
-        }
-        else
-        {
-            double minDist = phi - std::asin(GP::CHECKS::HALF_D_OVER_R_IN * std::sin(GP::ROD::ALPHA - phi));
-            minDist = (GP::ROD::HALF_W + GP::CELL::R_IN * std::sin(minDist)) / std::sin(phi);
-            return (sqDist > minDist * minDist);
-        }
-    }
+    return {std::max(0.0, std::abs(n.x*v.x + n.y*v.y) - GP::ROD::HALF_L), 
+            std::max(0.0, std::abs(n.x*v.y - n.y*v.x) - GP::ROD::HALF_W)};
 }
 
 [[nodiscard]] inline auto AnnularCell::rodIsWithinWalls(const Rod& rod) const -> bool
 {
-    return rodIsOutsideInnerWall(rod) && rodIsInsideOuterWall(rod);
+    const double sqDist = rod.x * rod.x + rod.y * rod.y;
+
+    if (sqDist > GP::CHECKS::MAX_IN_DIST_SQ && sqDist < GP::CHECKS::MIN_OUT_DIST_SQ) [[likely]]
+    {   // Clearly inside
+        return true;
+    }
+    else if (sqDist < GP::CHECKS::MIN_IN_DIST_SQ 
+          || sqDist > GP::CHECKS::MAX_OUT_DIST_SQ
+          || std::ranges::any_of(rod.getCornersRadiiSq(),
+                                [](const double& r_sq) { return (r_sq < GP::CELL::R_IN_SQ)
+                                                             || (r_sq > GP::CELL::R_OUT_SQ); })) [[unlikely]]
+    {   // Center too close to boundary || Any corner outside
+        return false;
+    }
+    else [[unlikely]]
+    {   // Chek R_IN from SDF for rounded rectangle
+        const Vec2 P{ rod.x, rod.y };
+        const Vec2 n{ std::cos(rod.a), std::sin(rod.a)};
+        const Vec2 d = coordinatesSFD(P, n);
+        return ((d.x*d.x + d.y*d.y) > GP::CELL::R_IN_SQ);
+    }
 }
 
 auto AnnularCell::isOverlapingNeighbor(const Rod& rod) const -> bool
@@ -197,7 +168,7 @@ auto AnnularCell::tryToBringRodTowardsCenter(Rod& rod, const double& dr) -> void
 {
     int current_index = 0;
     Rod rod{};
-    { // Fill in rings, angle is "tangent" to outer wall
+    { // Fill in rings, angle is "tangent" to outer radius
         double r_max = GP::CHECKS::R_OUT_MAX;
         double offset = 0.0;
         while (r_max > GP::CHECKS::R_OUT_MIN && current_index < GP::NUM_RODS)
@@ -239,9 +210,9 @@ auto AnnularCell::tryToBringRodTowardsCenter(Rod& rod, const double& dr) -> void
             std::ranges::for_each(m_bundle | std::views::reverse, [&](Rod& rod) { tryToBringRodTowardsCenter(rod, (GP::ROD::W / (n + 1))); });
         }
 
-        if (save("default_Initial_Configuration.csv", GP::NUM_RODS))
+        if (save("default_initial_Configuration.csv", GP::NUM_RODS))
         {
-            std::cout << "Configuration saved as 'default_Initial_Configuration.csv'.\n";
+            std::cout << "Configuration saved as 'default_initial_Configuration.csv'.\n";
             return true;
         }
         else

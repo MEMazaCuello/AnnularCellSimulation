@@ -23,8 +23,6 @@ public:
 	[[maybe_unused]] auto save(const std::filesystem::path& filename, const int n) const -> bool;
 
 private:
-	[[nodiscard]] auto rodIsInsideOuterWall(const Rod& rod) const -> bool;
-	[[nodiscard]] auto rodIsOutsideInnerWall(const Rod& rod) const -> bool;
 	[[nodiscard]] inline auto rodIsWithinWalls(const Rod& rod) const -> bool;
 
 	[[nodiscard]] auto isOverlapingNeighbor(const Rod& rod) const -> bool;
