@@ -10,8 +10,7 @@
 
 using std::numbers::pi;
 
-std::random_device rd;
-std::mt19937 gen(rd());
+std::mt19937 gen(std::random_device{}());
 std::uniform_real_distribution<double> rand_dw(-GP::MC::dW, GP::MC::dW);
 std::uniform_real_distribution<double> rand_dl(-GP::MC::dL, GP::MC::dL);
 std::uniform_real_distribution<double> rand_da(-GP::MC::dA, GP::MC::dA);
@@ -53,12 +52,12 @@ inline static auto coordinatesSFD(const Vec2& v, const Vec2& n) -> Vec2
     }
 }
 
-auto AnnularCell::isOverlapingNeighbor(const Rod& rod) const -> bool
+[[nodiscard]] auto AnnularCell::isOverlapingNeighbor(const Rod& rod) const -> bool
 {
-    const auto isOverlaping = [&](const Rod& rod) { return [&](int n) { return (n != rod.index) && rod.overlaps(m_bundle[n]); }; };
-    for (const int& neighborBoxIndex : m_grid.m_neighborBoxesIndexes[m_grid.getBoxIndexAt(rod.x, rod.y)])
+    const auto isOverlaping = [&](int n) { return (n!=rod.index) && rod.overlaps(m_bundle[n]); };
+    for (const auto& neighborBoxIndex : m_grid.m_neighborBoxesIndexes[m_grid.getBoxIndexAt(rod.x, rod.y)])
     {
-        if (std::ranges::any_of(m_grid.m_boxes[neighborBoxIndex], isOverlaping(rod)))
+        if (std::ranges::any_of(m_grid.m_boxes[neighborBoxIndex], isOverlaping))
         {
             return true;
         }
