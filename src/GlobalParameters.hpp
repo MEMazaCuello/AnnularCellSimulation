@@ -9,7 +9,7 @@
  */
 namespace GP 
 {
-	inline constexpr unsigned int NUM_RODS{ 2983 };
+	inline constexpr unsigned int NUM_RODS{ 2940 };
 
 	namespace ROD
 	{
@@ -18,6 +18,7 @@ namespace GP
 
 		// Size requirements
 		static_assert(W > 0.0);
+		static_assert(L > 0.0);
 		static_assert(W <= L);
 	}
 
@@ -28,6 +29,7 @@ namespace GP
 
 		// Size requirements
 		static_assert(R_IN > 0.0);
+		static_assert(R_OUT > 0.0);
 		static_assert(R_IN < R_OUT);
 		// Space requirements
 		static_assert(R_OUT * R_OUT > (R_IN + ROD::W) * (R_IN + ROD::W) + 0.25 * ROD::L * ROD::L);
@@ -39,7 +41,10 @@ namespace GP
 		inline constexpr int BOXES_PER_SIDE{ 35 };
 
 		// Parity requirement
+		static_assert(BOXES_PER_SIDE > 1);
 		static_assert(BOXES_PER_SIDE % 2 == 1);
+		// Box width > Rod diagonal
+		static_assert(4.0 * CELL::R_OUT * CELL::R_OUT > (BOXES_PER_SIDE - 2) * (BOXES_PER_SIDE - 2) * (ROD::W * ROD::W + ROD::L * ROD::L));
 	}
 
 	namespace MC
